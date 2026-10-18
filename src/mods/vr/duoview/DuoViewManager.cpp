@@ -1,5 +1,6 @@
 // DuoViewManager.cpp — per-frame DuoView state implementation.
 #include "DuoViewManager.hpp"
+#include "DuoViewDiagnostics.hpp"
 
 #include "../../VR.hpp"
 
@@ -49,10 +50,14 @@ void Manager::update(VR* vr, const Matrix4x4f& common) {
             // instead of jumping from a stale position.
             if (!was_stale_) {
                 stabilizer_.reset();
+                diagnostics().gaze_stale_entries.fetch_add(1, std::memory_order_relaxed);
             }
             fu = 0.5f; fv = 0.5f;
             was_stale_ = true;
         } else {
+            if (was_stale_) {
+                diagnostics().gaze_recoveries.fetch_add(1, std::memory_order_relaxed);
+            }
             was_stale_ = false;
         }
     } else {

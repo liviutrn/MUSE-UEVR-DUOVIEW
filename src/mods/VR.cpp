@@ -15260,6 +15260,26 @@ void VR::on_draw_sidebar_entry(std::string_view name) {
             m_duoview_periphery_scale->draw("DuoView: Periphery scale");
             m_duoview_feather_px->draw("DuoView: Feather (px)");
             m_duoview_debug_border->draw("DuoView: Debug border");
+            if (ImGui::CollapsingHeader("DuoView: Diagnostics")) {
+                const auto& d = uevr::duoview::diagnostics();
+                ImGui::Text("Frames: %llu", (unsigned long long)d.frames_total.load());
+                ImGui::Text("Composites OK: %llu", (unsigned long long)d.composites_ok.load());
+                ImGui::Text("Fallbacks (periphery-only): %llu", (unsigned long long)d.fallbacks_used.load());
+                ImGui::Text("Composite failures: %llu", (unsigned long long)d.composite_failed.load());
+                ImGui::Text("Init attempts/success: %llu / %llu",
+                    (unsigned long long)d.init_attempts.load(),
+                    (unsigned long long)d.init_success.load());
+                ImGui::Text("Snapshots synthesized: %llu", (unsigned long long)d.snapshots_synthesized.load());
+                ImGui::Text("Gaze stale entries/recoveries: %llu / %llu",
+                    (unsigned long long)d.gaze_stale_entries.load(),
+                    (unsigned long long)d.gaze_recoveries.load());
+                if (d.last_error[0] != '\0') {
+                    ImGui::TextWrapped("Last error: %s", d.last_error);
+                }
+                if (ImGui::Button("Reset DuoView diagnostics")) {
+                    uevr::duoview::diagnostics().reset();
+                }
+            }
         }
         if (rendering_method_changed && !is_mono_transition_pending() && get_runtime() != nullptr) {
             // Method 4 owns a union projection while active. Rebuild the

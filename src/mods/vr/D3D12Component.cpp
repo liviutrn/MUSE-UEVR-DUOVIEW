@@ -1,4 +1,5 @@
 #include <d3dcompiler.h>
+#include "vr/duoview/DuoViewDiagnostics.hpp"
 
 #include <openvr.h>
 #include <utility/Module.hpp>
@@ -5252,12 +5253,19 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     // Lazy one-time initialize (shader compile + PSO).
                     // Safe without a lock: on_frame runs on the single render
                     // thread and the compositor is touched nowhere else.
+                    uevr::duoview::diagnostics().frames_total.fetch_add(1, std::memory_order_relaxed);
                     // Persistent retry: initialize() is idempotent and
                     // early-returns when already initialized. If it keeps
                     // failing (e.g. D3DCompile), we keep trying every frame
                     // rather than giving up — the compositor must work.
                     if (!m_duoview_compositor.initialized()) {
+                        uevr::duoview::diagnostics().init_attempts.fetch_add(1, std::memory_order_relaxed);
                         m_duoview_compositor.initialize(device);
+                        if (m_duoview_compositor.initialized()) {
+                            uevr::duoview::diagnostics().init_success.fetch_add(1, std::memory_order_relaxed);
+                        } else {
+                            uevr::duoview::diagnostics().set_error("compositor initialize() failed; retrying");
+                        }
                     }
                     if (!snapshot.valid) {
                         // First frame (or degenerate matrix): synthesize a
@@ -5267,6 +5275,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                         snapshot.config = vr->duoview_config();
                         snapshot.fovea_u = 0.5f;
                         snapshot.fovea_v = 0.5f;
+                        uevr::duoview::diagnostics().snapshots_synthesized.fetch_add(1, std::memory_order_relaxed);
                     }
                     // submitted: the copy was dispatched. composited: the GPU
                     // composite itself succeeded.
@@ -5296,8 +5305,17 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                                         source.Get(), scene_source_state,
                                         destination, D3D12_RESOURCE_STATE_RENDER_TARGET,
                                         fallback_snap, slot_w, slot_h);
+                                    if (composited) {
+                                        uevr::duoview::diagnostics().fallbacks_used.fetch_add(1, std::memory_order_relaxed);
+                                    }
                                 }
-                                if (composited) { commands.has_commands = true; }
+                                if (composited) {
+                                    commands.has_commands = true;
+                                    uevr::duoview::diagnostics().composites_ok.fetch_add(1, std::memory_order_relaxed);
+                                } else {
+                                    uevr::duoview::diagnostics().composite_failed.fetch_add(1, std::memory_order_relaxed);
+                                    uevr::duoview::diagnostics().set_error("composite() and fallback both failed");
+                                }
                             },
                             std::nullopt, scene_source_state, nullptr, std::nullopt, backbuffer.Get());
                     }

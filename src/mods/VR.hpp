@@ -27,6 +27,7 @@
 #include "vr/D3D11Component.hpp"
 #include "vr/duoview/DuoViewConfig.hpp"
 #include "vr/duoview/DuoViewManager.hpp"
+#include "vr/duoview/DuoViewDiagnostics.hpp"
 #include "vr/D3D12Component.hpp"
 #include "vr/OverlayComponent.hpp"
 
