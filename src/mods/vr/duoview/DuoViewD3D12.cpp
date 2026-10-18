@@ -24,7 +24,7 @@ constexpr const char* kDuoViewCompositeHlsl = R"HLSL(
 //     into the fovea slot.
 //   - Feathered lerp at the crop border; optional debug border.
 //
-// Precompiled with fxc at build time (never D3DCompile on a live frame).
+// Compiled with D3DCompile once at initialize() (never per-frame).
 
 Texture2D<float4> Source : register(t0);
 SamplerState LinearClamp : register(s0);
@@ -260,6 +260,9 @@ bool Compositor::ensure_source_srv(ID3D12Device* device, ID3D12Resource* source)
     const auto desc = source->GetDesc();
     if (desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM) {
         return false;
+    }
+    if (desc.Flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) {
+        return false; // cannot sample as an SRV
     }
     D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc{};
     srv_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;

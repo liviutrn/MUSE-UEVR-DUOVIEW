@@ -5250,12 +5250,13 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     const auto slot_w = vr->get_hmd_width();
                     const auto slot_h = vr->get_hmd_height();
                     // Lazy one-time initialize (shader compile + PSO).
+                    // Safe without a lock: on_frame runs on the single render
+                    // thread and the compositor is touched nowhere else.
                     if (!m_duoview_compositor.initialized()) {
                         m_duoview_compositor.initialize(device);
                     }
                     // submitted: the copy was dispatched. composited: the GPU
-                    // composite itself succeeded. Only fall back when we
-                    // submitted but the composite failed.
+                    // composite itself succeeded.
                     bool submitted = false;
                     bool composited = false;
                     if (snapshot.valid && slot_w > 0 && slot_h > 0) {
@@ -5270,27 +5271,20 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                                     source.Get(), scene_source_state,
                                     destination, D3D12_RESOURCE_STATE_RENDER_TARGET,
                                     snapshot, slot_w, slot_h);
-                                if (composited) { commands.has_commands = true; }
-                            },
-                            std::nullopt, scene_source_state, nullptr, std::nullopt, backbuffer.Get());
-                    }
-                    if (submitted && !composited) {
-                        // Fallback: periphery-only composite (degraded mono, full FOV).
-                        auto fallback = snapshot;
-                        fallback.valid = true;
-                        fallback.periphery_only = true;
-                        m_openxr.copy(
-                            (uint32_t)runtimes::OpenXR::SwapchainIndex::DOUBLE_WIDE, nullptr,
-                            [source = backbuffer, scene_source_state, device, fallback, slot_w, slot_h,
-                             this](d3d12::CommandContext& commands, ID3D12Resource* destination) {
-                                if (!commands.ready()) { return; }
-                                if (m_duoview_compositor.composite(
+                                if (!composited) {
+                                    // Fallback inside the SAME lambda: composite()
+                                    // records nothing on failure, so retrying with
+                                    // a periphery-only snapshot is safe and avoids
+                                    // a second swapchain acquire.
+                                    auto fallback_snap = snapshot;
+                                    fallback_snap.periphery_only = true;
+                                    composited = m_duoview_compositor.composite(
                                         commands.cmd_list.Get(), device,
                                         source.Get(), scene_source_state,
                                         destination, D3D12_RESOURCE_STATE_RENDER_TARGET,
-                                        fallback, slot_w, slot_h)) {
-                                    commands.has_commands = true;
+                                        fallback_snap, slot_w, slot_h);
                                 }
+                                if (composited) { commands.has_commands = true; }
                             },
                             std::nullopt, scene_source_state, nullptr, std::nullopt, backbuffer.Get());
                     }
