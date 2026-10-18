@@ -58,6 +58,7 @@ private:
     }
 
     mutable std::mutex mutex_;
+    bool was_stale_ = false; // tracks stale transitions for clean recovery
     FrameSnapshot snapshot_{};
     CropRect crop_{};
     float common_h_{};

@@ -46,7 +46,9 @@ public:
         int grid_divisions = 64;
         // Freshness: if no valid sample arrives for longer than this,
         // the stabilizer reports stale (caller falls back to center).
-        uint64_t stale_timeout_us = 50000; // 50 ms, matches v22 CAPI hold
+        // 250 ms: holds through blinks (100-150 ms) without snapping the
+        // fovea to center; only a genuinely lost tracker triggers fallback.
+        uint64_t stale_timeout_us = 250000;
     };
 
     GazeStabilizer() { reset(); }

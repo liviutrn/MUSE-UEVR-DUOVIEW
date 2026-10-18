@@ -183,9 +183,10 @@ void test_gaze_invalid_holds_and_stales() {
         st.update({0.1f, 0.1f, false}, 2000 + i * 1000, u, v);
         CHECK(u == u0 && v == v0);
     }
-    // Past the 50 ms hold -> stale (caller falls back to center).
-    CHECK(st.stale(1000 + 60000));
-    CHECK(!st.stale(1000 + 40000));
+    // Past the 250 ms hold -> stale (caller falls back to center).
+    // A blink (100-150 ms) must NOT trigger stale.
+    CHECK(!st.stale(1000 + 150000));
+    CHECK(st.stale(1000 + 260000));
 }
 
 // ---------------------------------------------------------------- config

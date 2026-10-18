@@ -30702,7 +30702,9 @@ __forceinline Matrix4x4f* FFakeStereoRenderingHook::calculate_stereo_projection_
         // snapshot the D3D12 composite will read is refreshed here.
         if (vr->is_duoview_hijack_active() && true_index == 0) {
             auto& manager = vr->duoview_manager();
-            manager.update(vr, VR::get()->get_projection_matrix(VRRuntime::Eye::LEFT));
+            // *out was just assigned the LEFT common matrix above; derive the
+            // crop from the exact matrix being replaced.
+            manager.update(vr, *out);
             if (const auto foveal = manager.foveal_projection()) {
                 if (!g_hook->m_has_double_precision) {
                     *out = *foveal;

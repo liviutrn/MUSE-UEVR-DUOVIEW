@@ -44,9 +44,16 @@ void Manager::update(VR* vr, const Matrix4x4f& common) {
         }
         stabilizer_.update(sample, now, fu, fv);
         if (stabilizer_.stale(now)) {
-            // No usable gaze: hold the image still at center rather than
-            // jumping or freezing on a stale point.
+            // Tracker genuinely lost (not a blink): fall back to center.
+            // Reset so the next valid sample takes the clean first-snap path
+            // instead of jumping from a stale position.
+            if (!was_stale_) {
+                stabilizer_.reset();
+            }
             fu = 0.5f; fv = 0.5f;
+            was_stale_ = true;
+        } else {
+            was_stale_ = false;
         }
     } else {
         stabilizer_.reset();
