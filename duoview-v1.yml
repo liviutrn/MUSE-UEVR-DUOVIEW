@@ -1,0 +1,174 @@
+# DuoView v1 — Build, Test, Package.
+#
+# Builds the MUSE-UEVR-DUOVIEW duoview/v1 branch (UEVR backend at pinned
+# Joey commit 5ac7edc2 + DuoView stereo-slot hijack), runs the host logic
+# tests and the original compatibility suite, and packages a ZIP.
+#
+# Requires the repository Actions secret UEVR_SOURCE_TOKEN (a token from an
+# Epic-authorized GitHub account that can read the restricted joeyhodge/UESDK
+# submodule). The default github.token cannot access that SDK.
+
+name: DuoView v1 - Build and Test
+run-name: DuoView v1 build ${{ github.run_number }}
+on:
+  push:
+    branches: [duoview/v1]
+    paths:
+      - '.github/workflows/duoview-v1.yml'
+      - 'src/**'
+      - 'CMakeLists.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: duoview-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  build-and-test:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    steps:
+      - name: Require the SDK source credential
+        shell: pwsh
+        env:
+          SDK_SOURCE_TOKEN: ${{ secrets.UEVR_SOURCE_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SDK_SOURCE_TOKEN)) {
+            throw 'Add the repository Actions secret UEVR_SOURCE_TOKEN using a token from your Epic-authorized GitHub account; the default repository token cannot access the restricted UESDK submodule.'
+          }
+          'SDK source credential present.'
+
+      - name: Check out DuoView v1 with submodules
+        uses: actions/checkout@v4
+        with:
+          ref: duoview/v1
+          submodules: recursive
+          token: ${{ secrets.UEVR_SOURCE_TOKEN }}
+          persist-credentials: false
+
+      - name: Verify submodule pins
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory evidence -Force | Out-Null
+          git submodule status | Set-Content evidence/submodules.txt
+          Get-Content evidence/submodules.txt
+          # UESDK must be the pinned restricted commit.
+          $uesdk = (git -C dependencies/submodules/UESDK rev-parse HEAD).Trim()
+          if ($uesdk -ne '3cffbc82429b6165ceec2714f0f0d9ae48f55596') {
+            throw "UESDK pin mismatch: $uesdk"
+          }
+          'UESDK pin verified.'
+
+      - name: Build and run DuoView host logic tests
+        shell: pwsh
+        run: |
+          # Pure-logic headers (geometry, gaze stabilizer, config): compile
+          # with MSVC and run. No GPU, no engine.
+          $cl = (Get-Command cl.exe -ErrorAction SilentlyContinue)
+          if ($null -eq $cl) {
+            $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+            Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+            Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64'
+          }
+          cl /nologo /std:c++20 /EHsc /O2 /Fe:evidence\duoview_tests.exe src\mods\vr\duoview\tests\duoview_tests.cpp
+          if ($LASTEXITCODE -ne 0) { throw 'DuoView host tests failed to compile' }
+          .\evidence\duoview_tests.exe | Tee-Object evidence\duoview-host-tests.log
+          if ($LASTEXITCODE -ne 0) { throw 'DuoView host logic tests FAILED' }
+
+      - name: Configure UEVR backend
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G 'Visual Studio 17 2022' -A x64 -DCMAKE_BUILD_TYPE=Release -DUEVR_BUILD_COMPATIBILITY_TESTS=ON *> evidence\configure.log
+          $code = $LASTEXITCODE; Get-Content evidence\configure.log | Select-Object -Last 60
+          if ($code -ne 0) { throw "CMake configuration failed ($code)" }
+
+      - name: Build compatibility tests (baseline integrity)
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel 2 --target compatibility-policy-tests steam-frame-input-tests stock-frame-migration-tests gamepad-recovery-tests kananlib-decode-window-tests diagnostic-safety-tests prospi-camera-trace-tests prospi-camera-framing-tests prospi-celebration-framing-tests prospi-roof-visibility-tests hifi-hook-memory-tests nascar-hook-compatibility-tests input-hook-installation-tests mono-d3d11-tests mono-d3d12-tests ui-alpha-tests ui-alpha-lifecycle-tests ui-composition-tests lua-fname-binding-tests lua-context-dispatch-tests lua-controller-input-tests stalker2-native-policy-tests stalker2-native-d3d12-tests *> evidence\test-build.log
+          $code = $LASTEXITCODE; Get-Content evidence\test-build.log | Select-Object -Last 100
+          if ($code -ne 0) { throw "Compatibility tests failed to compile ($code)" }
+
+      - name: Run compatibility tests
+        shell: pwsh
+        run: |
+          ctest --test-dir build -C Release --output-on-failure --no-tests=error *> evidence\compatibility-tests.log
+          $code = $LASTEXITCODE; Get-Content evidence\compatibility-tests.log
+          if ($code -ne 0) { throw "Compatibility tests FAILED ($code)" }
+
+      - name: Build backend DLLs
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel 2 --target uevr vr-plugin-nullifier LuaVR *> evidence\backend-build.log
+          $code = $LASTEXITCODE; Get-Content evidence\backend-build.log | Select-Object -Last 100
+          if ($code -ne 0) { throw "Backend build FAILED ($code)" }
+
+      - name: Check out matching frontend
+        uses: actions/checkout@v4
+        with:
+          repository: joeyhodge/uevr-frontend
+          ref: 60be4b0f9a646109fd9fdf448bacd41477234091
+          path: frontend
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Build frontend
+        shell: pwsh
+        run: |
+          dotnet publish frontend/UEVR/UEVR.csproj --output package --configuration Release *> evidence\frontend-build.log
+          $code = $LASTEXITCODE; Get-Content evidence\frontend-build.log | Select-Object -Last 60
+          if ($code -ne 0) { throw "Frontend build FAILED ($code)" }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item build\bin\uevr\*.dll package\
+          Copy-Item build\bin\vr-plugin-nullifier\UEVRPluginNullifier.dll package\
+          Copy-Item build\bin\LuaVR\LuaVR.dll package\
+          @'
+          DUOVIEW v1 — Muse's fixed-foveated mono hijack. HEADSET UNVERIFIED.
+          Backend: Joey 5ac7edc207866569334175e4ed8a7517971547f6 + DuoView v1.
+          The Native Stereo selection is hijacked on D3D12+OpenXR into
+          fixed-foveated mono: left slot = high-density foveal crop, right
+          slot = low-res full-FOV periphery, same mono camera pose (no IPD),
+          composited to one mono image submitted to both eyes.
+          Fixed-center fovea is the DEFAULT. Gaze-tracked fovea is optional
+          (DuoView UI section) and needs the PSVR2 Toolkit CAPI installed;
+          without valid gaze it holds at center.
+          D3D11/OpenVR keep the original true-stereo behavior.
+          NEVER overwrite a known-good build. Extract this ZIP into a
+          SEPARATE TEST DIRECTORY. Test fixed-center first.
+          '@ | Set-Content package/READ_FIRST.txt
+          $needed = @('UEVRBackend.dll', 'UEVRPluginNullifier.dll', 'LuaVR.dll', 'READ_FIRST.txt')
+          foreach ($name in $needed) { if (!(Test-Path ("package/" + $name))) { throw "Missing package file: $name" } }
+          if (@(Get-ChildItem package -File -Filter *.exe).Count -lt 1) { throw 'Missing frontend executable' }
+          Get-ChildItem package -Recurse -File | Get-FileHash -Algorithm SHA256 | ConvertTo-Json | Set-Content evidence\package-sha256.json
+          $zip = "MUSE-DuoView-v1-${{ github.run_number }}.zip"
+          Compress-Archive -Path package/* -DestinationPath $zip -Force
+          (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256"
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: MUSE-DuoView-v1-${{ github.run_number }}
+          path: |
+            MUSE-DuoView-v1-*.zip
+            MUSE-DuoView-v1-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 90
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MUSE-DuoView-v1-Evidence-${{ github.run_number }}
+          path: evidence/
+          if-no-files-found: error
