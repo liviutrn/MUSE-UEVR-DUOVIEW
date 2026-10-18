@@ -28,6 +28,7 @@
 #include "UIAlpha.hpp"
 #include "UIComposition.hpp"
 #include "Stalker2NativeD3D12.hpp"
+#include "vr/duoview/DuoViewD3D12.hpp"
 
 class VR;
 namespace render {
@@ -226,6 +227,7 @@ private:
     DepthCandidateDecision evaluate_depth_candidate(VR* vr, const D3D12_RESOURCE_DESC& desc);
 
     ComPtr<ID3D12Resource> m_prev_backbuffer{};
+    uevr::duoview::dx12::Compositor m_duoview_compositor{};
     std::array<d3d12::CommandContext, 3> m_generic_commands{};
     std::chrono::steady_clock::time_point m_last_on_frame{};
     std::chrono::steady_clock::time_point m_last_frame_timing_log{};

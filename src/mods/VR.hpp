@@ -25,6 +25,8 @@
 #include "vr/runtimes/OpenXR.hpp"
 
 #include "vr/D3D11Component.hpp"
+#include "vr/duoview/DuoViewConfig.hpp"
+#include "vr/duoview/DuoViewManager.hpp"
 #include "vr/D3D12Component.hpp"
 #include "vr/OverlayComponent.hpp"
 
@@ -524,6 +526,18 @@ public:
         return m_rendering_method->value() == RenderingMethod::NATIVE_STEREO &&
                !is_using_afr();
     }
+
+    // DuoView: the Native Stereo selection is hijacked to render fixed-foveated
+    // mono (left slot = high-density foveal crop, right slot = low-res full-FOV
+    // periphery, same mono camera pose, composited to one mono image for both
+    // eyes). v1 scope: D3D12 + OpenXR only; D3D11/OpenVR keep true stereo.
+    bool is_duoview_hijack_active() const;
+
+    // Validated DuoView configuration snapshot (from the UI settings below).
+    uevr::duoview::ValidatedConfig duoview_config() const;
+    bool is_duoview_gaze_enabled() const { return m_duoview_gaze_enabled->value(); }
+    uevr::duoview::Manager& duoview_manager() { return *m_duoview_manager; }
+    const uevr::duoview::Manager& duoview_manager() const { return *m_duoview_manager; }
 
     bool is_using_synchronized_afr() const {
         return m_rendering_method->value() == RenderingMethod::SYNCHRONIZED ||
@@ -1909,6 +1923,15 @@ private:
     const ModToggle::Ptr m_native_stereo_fix_async_openxr_wait{ ModToggle::create(generate_name("NativeStereoFixAsyncOpenXRWait"), false) };
     const ModToggle::Ptr m_stalker2_native_pair_experiment{ ModToggle::create(generate_name("Stalker2NativePairExperiment"), false) };
     const ModToggle::Ptr m_stalker2_sharpen_priority{ ModToggle::create(generate_name("Stalker2SharpenExistingPriority"), false) };
+    // DuoView foveated-mono settings (active when the Native Stereo selection
+    // is hijacked on D3D12+OpenXR; see is_duoview_hijack_active).
+    const ModToggle::Ptr m_duoview_gaze_enabled{ ModToggle::create(generate_name("DuoViewGazeEnabled"), false) };
+    const ModSlider::Ptr m_duoview_crop_fraction{ ModSlider::create(generate_name("DuoViewCropFraction"), 0.20f, 0.50f, 0.30f) };
+    const ModSlider::Ptr m_duoview_periphery_scale{ ModSlider::create(generate_name("DuoViewPeripheryScale"), 0.15f, 0.50f, 0.25f) };
+    const ModSlider::Ptr m_duoview_feather_px{ ModSlider::create(generate_name("DuoViewFeatherPx"), 0.0f, 64.0f, 12.0f) };
+    const ModToggle::Ptr m_duoview_debug_border{ ModToggle::create(generate_name("DuoViewDebugBorder"), false) };
+    // DuoView per-frame state; inert unless the hijack is active.
+    const std::unique_ptr<uevr::duoview::Manager> m_duoview_manager{ std::make_unique<uevr::duoview::Manager>() };
 
     const ModSlider::Ptr m_custom_z_near{ ModSlider::create(generate_name("CustomZNear"), 0.001f, 100.0f, 0.01f, true) };
     const ModToggle::Ptr m_custom_z_near_enabled{ ModToggle::create(generate_name("EnableCustomZNear"), false, true) };

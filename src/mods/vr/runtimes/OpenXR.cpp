@@ -1999,7 +1999,11 @@ VRRuntime::Error OpenXR::update_matrices(float nearz, float farz) {
     this->eyes[1] = Matrix4x4f{OpenXR::to_glm(right_pose.orientation)};
     this->eyes[1][3] = Vector4f{*(Vector3f*)&right_pose.position, 1.0f};
 
-    if (const auto vr = VR::get(); vr->is_using_mono()) {
+    // DuoView hijack reuses the mono common-basis projection for both slots:
+    // slot 1 (periphery) submits it directly, slot 0 (fovea) derives its
+    // crop from it in the projection hook. Same basis => the composite
+    // seam mapping cannot drift.
+    if (const auto vr = VR::get(); vr->is_using_mono() || vr->is_duoview_hijack_active()) {
         const auto g = mono_geometry(this->views);
         if (g && std::isfinite(nearz)) {
             std::unique_lock eyes_lock{this->eyes_mtx};
@@ -3892,10 +3896,15 @@ XrResult OpenXR::end_frame(const std::vector<XrCompositionLayerBaseHeader*>& qua
     auto vr = VR::get();
     const auto is_afr = vr->is_using_afr();
     const bool mono = vr->is_using_mono();
-    if (!uevr::ui_composition::eligible(true, mono, vr->is_dibr_rendering_method_selected(),
+    // DuoView: the composited mono image is submitted exactly like Joey
+    // mono (common pose + per-eye crop FOVs); the D3D12 composite has
+    // already merged both slots into one mono frame.
+    const bool duoview = vr->is_duoview_hijack_active();
+    const bool mono_submit = mono || duoview;
+    if (!uevr::ui_composition::eligible(true, mono_submit, vr->is_dibr_rendering_method_selected(),
             vr->is_mono_transition_pending(), vr->is_using_2d_screen()) ||
         !(vr->get_overlay_component().get_ui_composition_request() & 1)) { ui_composition = nullptr; }
-    if (mono) { has_depth = false; }
+    if (mono_submit) { has_depth = false; }
     if (is_afr && is_dead_island_2_ue425_executable()) {
         has_depth = false;
         SPDLOG_INFO_ONCE("[DeadIsland2][UE4.25][OpenXR] Submitting the AFR projection layer without depth");
@@ -3951,7 +3960,7 @@ XrResult OpenXR::end_frame(const std::vector<XrCompositionLayerBaseHeader*>& qua
         }
     }
     if (stalker_pair && stalker_pair->reused) { has_depth = false; }
-    const auto mono_projection = mono ? mono_geometry(pipelined_stage_views) : std::nullopt;
+    const auto mono_projection = mono_submit ? mono_geometry(pipelined_stage_views) : std::nullopt;
     std::array<std::optional<uevr::mono::ProjectionCrop>, 2> mono_crops{};
     if (mono_projection) {
         const auto& sc = this->swapchains[(uint32_t)OpenXR::SwapchainIndex::DOUBLE_WIDE];
@@ -3964,7 +3973,7 @@ XrResult OpenXR::end_frame(const std::vector<XrCompositionLayerBaseHeader*>& qua
     const auto debug_submit_empty = this->debug_submit_empty_frame->value();
 
     if (pipelined_stage_views.empty()) {
-        if (mono) { SPDLOG_WARNING_EVERY_N_SEC(2, "[Mono] No validated current scene/pose to submit"); }
+        if (mono_submit) { SPDLOG_WARNING_EVERY_N_SEC(2, "[Mono] No validated current scene/pose to submit"); }
         else { spdlog::warn("[VR] No stage views to submit"); }
     }
 
@@ -4012,7 +4021,7 @@ XrResult OpenXR::end_frame(const std::vector<XrCompositionLayerBaseHeader*>& qua
     // we CANT push the layers every time, it cause some layer error
     // in xrEndFrame, so we must only do it when shouldRender is true
     if (!debug_submit_empty && (!stalker_pair || stalker_pair->scene_available) && pipelined_frame_state.shouldRender == XR_TRUE && !pipelined_stage_views.empty() &&
-        (!mono || (mono_projection && mono_crops[0] && mono_crops[1]))) {
+        (!mono_submit || (mono_projection && mono_crops[0] && mono_crops[1]))) {
         projection_layer_views.resize(pipelined_stage_views.size(), {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW});
         depth_layers.resize(projection_layer_views.size(), {XR_TYPE_COMPOSITION_LAYER_DEPTH_INFO_KHR});
 

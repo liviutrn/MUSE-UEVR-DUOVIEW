@@ -71,6 +71,7 @@ private:
 struct FrameSnapshot {
     uint64_t frame_id = 0;   // engine frame this snapshot belongs to
     bool valid = false;
+    bool periphery_only = false; // fallback: ignore the crop, upscale periphery
     ValidatedConfig config{};
     // Stabilized fovea center in common-basis UV (fixed => 0.5, 0.5).
     float fovea_u = 0.5f;

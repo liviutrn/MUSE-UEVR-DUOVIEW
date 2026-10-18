@@ -29930,7 +29930,22 @@ void FFakeStereoRenderingHook::adjust_view_rect(FFakeStereoRendering* stereo, in
         SPDLOG_INFO_ONCE("[Medium][UE4.25Plus] Forcing one-based stereo eye passes (1=left, 2=right)");
     }
 
-    if (VR::get()->is_using_mono()) {
+    // DuoView: slot 0 (fovea) renders full-res into the left half; slot 1
+    // (periphery) renders low-res at the right-half origin. The D3D12
+    // composite knows this layout.
+    if (VR::get()->is_duoview_hijack_active()) {
+        if (true_index == 1) {
+            uint32_t pw = *w, ph = *h;
+            VR::get()->duoview_config().periphery_extent(*w, *h, pw, ph);
+            *x = (int)*w;
+            *y = 0;
+            *w = pw;
+            *h = ph;
+        } else {
+            *x = 0;
+            *y = 0;
+        }
+    } else if (VR::get()->is_using_mono()) {
         *x = 0;
         *y = 0;
     } else if (!VR::get()->is_native_stereo_fix_enabled() || swgr_ue574_dx12_runtime()) {
@@ -30020,6 +30035,11 @@ __forceinline void FFakeStereoRenderingHook::calculate_stereo_view_offset(
     const auto rot_d = (Rotator<double>*)view_rotation;
 
     const bool mono = vr->is_using_mono();
+    // DuoView: both stereo slots render from the identical mono camera pose
+    // (no IPD). Unlike true mono, true_index is NOT forced to 0 — the slots
+    // must stay distinguishable so last_eye_update/roomscale still fire.
+    const bool duoview = vr->is_duoview_hijack_active();
+    const bool mono_pose = mono || duoview;
     if (mono && !is_full_pass) { true_index = 0; }
     if (vr->is_using_afr() && !is_full_pass) {
         true_index = g_frame_count % 2;
@@ -30248,10 +30268,10 @@ __forceinline void FFakeStereoRenderingHook::calculate_stereo_view_offset(
 
         const auto rotation_offset = vr->get_rotation_offset();
         const auto current_hmd_rotation = glm::normalize(rotation_offset * glm::quat{vr->get_rotation(0)});
-        const auto current_eye_rotation_offset = glm::normalize(glm::quat{vr->get_eye_transform(true_index)});
+        const auto current_eye_rotation_offset = glm::normalize(glm::quat{vr->get_eye_transform(mono_pose ? 0 : true_index)});
 
         const auto new_rotation = glm::normalize(vqi_norm * current_hmd_rotation * current_eye_rotation_offset);
-        const auto eye_offset = mono
+        const auto eye_offset = mono_pose
             ? (glm::vec3{vr->get_eye_offset(VRRuntime::Eye::LEFT)} + glm::vec3{vr->get_eye_offset(VRRuntime::Eye::RIGHT)}) * 0.5f
             : glm::vec3{vr->get_eye_offset((VRRuntime::Eye)(true_index))};
 
@@ -30266,7 +30286,7 @@ __forceinline void FFakeStereoRenderingHook::calculate_stereo_view_offset(
         const auto head_offset_flat = quat_converter * (vqi_norm * (pos_flat * world_scale));
         // Mono's center is expressed in head space; its optical rotation must
         // not rotate the translation a second time on calibrated/canted HMDs.
-        const auto eye_translation_rotation = mono ? glm::normalize(vqi_norm * current_hmd_rotation) : glm::normalize(new_rotation);
+        const auto eye_translation_rotation = mono_pose ? glm::normalize(vqi_norm * current_hmd_rotation) : glm::normalize(new_rotation);
         const auto eye_separation = quat_converter * (eye_translation_rotation * (eye_offset * world_scale));
 
         if (trace_view) {
@@ -30675,6 +30695,21 @@ __forceinline Matrix4x4f* FFakeStereoRenderingHook::calculate_stereo_projection_
         } else {
             const auto fmat = VR::get()->get_projection_matrix((VRRuntime::Eye)(true_index));
             double_matrix = fmat;
+        }
+        // DuoView: slot 1 (periphery) keeps the common mono projection written
+        // above (update_matrices serves it for the hijack). Slot 0 (fovea) is
+        // replaced with the crop derived from the same common basis, and the
+        // snapshot the D3D12 composite will read is refreshed here.
+        if (vr->is_duoview_hijack_active() && true_index == 0) {
+            auto& manager = vr->duoview_manager();
+            manager.update(vr, VR::get()->get_projection_matrix(VRRuntime::Eye::LEFT));
+            if (const auto foveal = manager.foveal_projection()) {
+                if (!g_hook->m_has_double_precision) {
+                    *out = *foveal;
+                } else {
+                    double_matrix = *foveal;
+                }
+            }
         }
         if (vr->mono_frame_gate_required() && vr->get_runtime()->is_openxr()) {
             vr->get_openxr_runtime()->note_mono_projection();

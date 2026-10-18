@@ -15245,6 +15245,22 @@ void VR::on_draw_sidebar_entry(std::string_view name) {
                     uevr::mono::label(requested_rendering_method()), uevr::mono::label(m_rendering_method->value()));
             }
         }
+        if (is_duoview_hijack_active() || requested_rendering_method() == RenderingMethod::NATIVE_STEREO) {
+            ImGui::Separator();
+            ImGui::TextWrapped("DuoView: the Native Stereo selection renders fixed-foveated mono "
+                "(left slot = high-density foveal crop, right slot = low-res periphery, one mono "
+                "camera pose, composited to both eyes). D3D12 + OpenXR only.");
+            if (is_duoview_hijack_active()) {
+                ImGui::TextWrapped("DuoView: %s", "ACTIVE");
+            } else {
+                ImGui::TextWrapped("DuoView: %s", "inactive (needs D3D12 + OpenXR)");
+            }
+            m_duoview_gaze_enabled->draw("DuoView: Gaze-tracked fovea (off = fixed center)");
+            m_duoview_crop_fraction->draw("DuoView: Foveal crop fraction");
+            m_duoview_periphery_scale->draw("DuoView: Periphery scale");
+            m_duoview_feather_px->draw("DuoView: Feather (px)");
+            m_duoview_debug_border->draw("DuoView: Debug border");
+        }
         if (rendering_method_changed && !is_mono_transition_pending() && get_runtime() != nullptr) {
             // Method 4 owns a union projection while active. Rebuild the
             // runtime matrices when users switch into or out of it instead of
@@ -17273,6 +17289,33 @@ Matrix4x4f VR::get_eye_transform(uint32_t index) {
     std::shared_lock _{get_runtime()->eyes_mtx};
 
     return get_runtime()->eyes[index];
+}
+
+// DuoView: hijack the Native Stereo selection into fixed-foveated mono.
+// v1 scope is D3D12 + OpenXR; every other renderer/runtime keeps true stereo,
+// so this predicate is the single gate for all five interception points.
+bool VR::is_duoview_hijack_active() const {
+    if (m_rendering_method->value() != RenderingMethod::NATIVE_STEREO || is_using_afr()) {
+        return false;
+    }
+    if (g_framework == nullptr ||
+        g_framework->get_renderer_type() != Framework::RendererType::D3D12) {
+        return false;
+    }
+    const auto runtime = get_runtime();
+    return runtime != nullptr && runtime->is_openxr();
+}
+
+uevr::duoview::ValidatedConfig VR::duoview_config() const {
+    uevr::duoview::RawConfig raw{};
+    raw.fovea_mode = m_duoview_gaze_enabled->value()
+        ? uevr::duoview::FoveaMode::GAZE_TRACKED
+        : uevr::duoview::FoveaMode::FIXED_CENTER;
+    raw.crop_fraction = m_duoview_crop_fraction->value();
+    raw.periphery_scale = m_duoview_periphery_scale->value();
+    raw.feather_px = m_duoview_feather_px->value();
+    raw.debug_border = m_duoview_debug_border->value();
+    return uevr::duoview::ValidatedConfig::validate(raw);
 }
 
 Matrix4x4f VR::get_current_eye_transform(bool flip) {

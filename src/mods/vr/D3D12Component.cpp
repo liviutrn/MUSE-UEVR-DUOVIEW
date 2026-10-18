@@ -5240,8 +5240,57 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     }
                 }
             } else {
-                // Copy over the entire double wide, or submit native stereo as texture-array slices.
-                if (suppress_scene_copy) {
+                // DuoView: the Native Stereo selection is hijacked into fixed-foveated
+                // mono. Both slots were rendered from the same mono pose (slot 0 =
+                // foveal crop, slot 1 = low-res periphery); composite them into one
+                // mono image and duplicate it to both swapchain halves. This branch
+                // runs instead of every other scene-copy path below.
+                if (vr->is_duoview_hijack_active()) {
+                    const auto snapshot = vr->duoview_manager().snapshot();
+                    const auto slot_w = vr->get_hmd_width();
+                    const auto slot_h = vr->get_hmd_height();
+                    // Lazy one-time initialize (shader compile + PSO).
+                    if (!m_duoview_compositor.initialized()) {
+                        m_duoview_compositor.initialize(device);
+                    }
+                    bool composited = false;
+                    if (snapshot.valid && slot_w > 0 && slot_h > 0) {
+                        composited = m_openxr.copy(
+                            (uint32_t)runtimes::OpenXR::SwapchainIndex::DOUBLE_WIDE, nullptr,
+                            [source = backbuffer, scene_source_state, device, snapshot, slot_w, slot_h,
+                             this, &composited](
+                                d3d12::CommandContext& commands, ID3D12Resource* destination) {
+                                if (!commands.ready()) { return; }
+                                composited = m_duoview_compositor.composite(
+                                    commands.cmd_list.Get(), device,
+                                    source.Get(), scene_source_state,
+                                    destination, D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                    snapshot, slot_w, slot_h);
+                                if (composited) { commands.has_commands = true; }
+                            },
+                            std::nullopt, scene_source_state, nullptr, std::nullopt, backbuffer.Get());
+                    }
+                    if (!composited) {
+                        // Fallback: periphery-only composite (degraded mono, full FOV).
+                        auto fallback = snapshot;
+                        fallback.valid = true;
+                        fallback.periphery_only = true;
+                        m_openxr.copy(
+                            (uint32_t)runtimes::OpenXR::SwapchainIndex::DOUBLE_WIDE, nullptr,
+                            [source = backbuffer, scene_source_state, device, fallback, slot_w, slot_h,
+                             this](d3d12::CommandContext& commands, ID3D12Resource* destination) {
+                                if (!commands.ready()) { return; }
+                                if (m_duoview_compositor.composite(
+                                        commands.cmd_list.Get(), device,
+                                        source.Get(), scene_source_state,
+                                        destination, D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                        fallback, slot_w, slot_h)) {
+                                    commands.has_commands = true;
+                                }
+                            },
+                            std::nullopt, scene_source_state, nullptr, std::nullopt, backbuffer.Get());
+                    }
+                } else if (suppress_scene_copy) {
                     SPDLOG_INFO_EVERY_N_SEC(2, "[OpenXR][debug] Skipping double-wide scene copy for perf isolation");
                     if (!debug_submit_empty_frame) {
                         m_openxr.copy((uint32_t)runtimes::OpenXR::SwapchainIndex::DOUBLE_WIDE, nullptr, scene_source_state, nullptr);

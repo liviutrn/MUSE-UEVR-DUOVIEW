@@ -1869,6 +1869,8 @@ list(APPEND uevr_SOURCES
 	"src/mods/vr/CVarManager.cpp"
 	"src/mods/vr/D3D11Component.cpp"
 	"src/mods/vr/D3D12Component.cpp"
+	"src/mods/vr/duoview/DuoViewManager.cpp"
+	"src/mods/vr/duoview/DuoViewD3D12.cpp"
 	"src/mods/vr/FFakeStereoRenderingHook.cpp"
 	"src/mods/vr/IXRTrackingSystemHook.cpp"
 	"src/mods/vr/KtjLOpenXRFactory.cpp"
