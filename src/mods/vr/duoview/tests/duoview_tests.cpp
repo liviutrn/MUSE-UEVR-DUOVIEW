@@ -211,3 +211,5 @@ int main() {
     std::printf("pass=%d fail=%d\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;
 }
+
+// CI trigger 2026-10-18: no-op comment to start the duoview-v1 workflow.
