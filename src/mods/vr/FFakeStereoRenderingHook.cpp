@@ -30701,30 +30701,14 @@ __forceinline Matrix4x4f* FFakeStereoRenderingHook::calculate_stereo_projection_
         // replaced with the crop derived from the same common basis.
         // The manager is updated authoritatively in OpenXR::update_matrices;
         // we refresh here too (idempotent) for the game-thread path.
-        if (vr->is_duoview_hijack_active()) {
+        if (vr->is_duoview_hijack_active() && true_index == 0) {
             auto& manager = vr->duoview_manager();
             manager.update(vr.get(), *out);
-            // Apply the foveal crop to slot 0. The true_index detection can
-            // be unreliable, so we use a first-view-per-frame fallback:
-            // the first view processed in each frame gets the fovea if
-            // true_index didn't identify it.
-            static uint64_t last_frame_seq = 0;
-            static bool fovea_done = false;
-            const auto sid = manager.snapshot().frame_id;
-            if (sid != last_frame_seq) {
-                last_frame_seq = sid;
-                fovea_done = false;
-            }
-            if (!fovea_done) {
-                // Apply to the first view of each frame. Robust against
-                // true_index misdetection.
-                if (const auto foveal = manager.foveal_projection()) {
-                    if (!g_hook->m_has_double_precision) {
-                        *out = *foveal;
-                    } else {
-                        double_matrix = *foveal;
-                    }
-                    fovea_done = true;
+            if (const auto foveal = manager.foveal_projection()) {
+                if (!g_hook->m_has_double_precision) {
+                    *out = *foveal;
+                } else {
+                    double_matrix = *foveal;
                 }
             }
         }

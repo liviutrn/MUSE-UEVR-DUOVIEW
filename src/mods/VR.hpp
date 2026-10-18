@@ -710,10 +710,6 @@ public:
             return false;
         }
 
-        // DuoView hijacks Native Stereo and requires the fix for correct
-        // image output in STALKER 2. Auto-enable when hijack is active.
-        if (is_duoview_hijack_active()) { return true; }
-
         return m_native_stereo_fix->value() &&
             m_rendering_method->value() == RenderingMethod::NATIVE_STEREO &&
             !is_using_afr();
