@@ -5253,9 +5253,13 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     if (!m_duoview_compositor.initialized()) {
                         m_duoview_compositor.initialize(device);
                     }
+                    // submitted: the copy was dispatched. composited: the GPU
+                    // composite itself succeeded. Only fall back when we
+                    // submitted but the composite failed.
+                    bool submitted = false;
                     bool composited = false;
                     if (snapshot.valid && slot_w > 0 && slot_h > 0) {
-                        composited = m_openxr.copy(
+                        submitted = m_openxr.copy(
                             (uint32_t)runtimes::OpenXR::SwapchainIndex::DOUBLE_WIDE, nullptr,
                             [source = backbuffer, scene_source_state, device, snapshot, slot_w, slot_h,
                              this, &composited](
@@ -5270,7 +5274,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                             },
                             std::nullopt, scene_source_state, nullptr, std::nullopt, backbuffer.Get());
                     }
-                    if (!composited) {
+                    if (submitted && !composited) {
                         // Fallback: periphery-only composite (degraded mono, full FOV).
                         auto fallback = snapshot;
                         fallback.valid = true;
