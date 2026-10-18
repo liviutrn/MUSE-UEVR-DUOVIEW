@@ -710,6 +710,10 @@ public:
             return false;
         }
 
+        // DuoView hijacks Native Stereo and requires the fix for correct
+        // image output in STALKER 2. Auto-enable when hijack is active.
+        if (is_duoview_hijack_active()) { return true; }
+
         return m_native_stereo_fix->value() &&
             m_rendering_method->value() == RenderingMethod::NATIVE_STEREO &&
             !is_using_afr();
@@ -729,8 +733,9 @@ public:
 
     bool is_native_stereo_fix_texture_array_submit_enabled() const {
         if (uevr::nascar::is_target()) { return false; }
-        // DuoView hijacks Native Stereo; the texture-array path is incompatible
-        // and must never activate (it crashes the D3D12 RHI).
+        // DuoView uses double-wide for the compositor input; the texture-array
+        // submit path is incompatible (crashes D3D12). The main Native Stereo
+        // Fix is auto-enabled separately.
         if (is_duoview_hijack_active()) { return false; }
         const auto runtime = get_runtime();
         return m_native_stereo_fix_texture_array_submit->value() &&
