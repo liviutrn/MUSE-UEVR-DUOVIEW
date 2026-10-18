@@ -5320,8 +5320,32 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                                     commands.has_commands = true;
                                     uevr::duoview::diagnostics().composites_ok.fetch_add(1, std::memory_order_relaxed);
                                 } else {
+                                    // Last resort: plain copy so we never submit black.
+                                    // The composite failed (e.g., shader issue), but the
+                                    // backbuffer has a valid image. Copy it directly.
+                                    auto* cmd = commands.cmd_list.Get();
+                                    D3D12_RESOURCE_BARRIER b[2]{};
+                                    b[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                                    b[0].Transition.pResource = source.Get();
+                                    b[0].Transition.StateBefore = scene_source_state;
+                                    b[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+                                    b[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+                                    b[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                                    b[1].Transition.pResource = destination;
+                                    b[1].Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                                    b[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+                                    b[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+                                    cmd->ResourceBarrier(2, b);
+                                    cmd->CopyResource(destination, source.Get());
+                                    // Transition back.
+                                    b[0].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+                                    b[0].Transition.StateAfter = scene_source_state;
+                                    b[1].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+                                    b[1].Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                                    cmd->ResourceBarrier(2, b);
+                                    commands.has_commands = true;
                                     uevr::duoview::diagnostics().composite_failed.fetch_add(1, std::memory_order_relaxed);
-                                    uevr::duoview::diagnostics().set_error("composite() and fallback both failed");
+                                    uevr::duoview::diagnostics().set_error("composite() failed, used plain copy fallback");
                                 }
                             },
                             std::nullopt, scene_source_state, nullptr, std::nullopt, backbuffer.Get());

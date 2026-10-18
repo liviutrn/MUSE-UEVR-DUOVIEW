@@ -271,7 +271,12 @@ bool Compositor::ensure_source_srv(ID3D12Device* device, ID3D12Resource* source)
         return true;
     }
     const auto desc = source->GetDesc();
-    if (desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM) {
+    // Accept UNORM, SRGB, and TYPELESS (UEVR creates swapchains as SRGB).
+    // Matches the proven mono path's bgra8() helper.
+    const bool fmt_ok = desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM ||
+                        desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
+                        desc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS;
+    if (!fmt_ok) {
         return false;
     }
     if (desc.Flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) {
@@ -316,10 +321,14 @@ bool Compositor::composite(ID3D12GraphicsCommandList* cmd, ID3D12Device* device,
     // supersampling: the HMD width/height may not match the render target).
     const auto src_desc = source->GetDesc();
     const auto dst_desc = dest->GetDesc();
+    const auto fmt_ok = [](DXGI_FORMAT f) {
+        return f == DXGI_FORMAT_B8G8R8A8_UNORM ||
+               f == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
+               f == DXGI_FORMAT_B8G8R8A8_TYPELESS;
+    };
     if (src_desc.Width != dst_desc.Width || src_desc.Height != dst_desc.Height ||
         src_desc.Width % 2 != 0 || src_desc.Width == 0 || src_desc.Height == 0 ||
-        src_desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM ||
-        dst_desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM ||
+        !fmt_ok(src_desc.Format) || !fmt_ok(dst_desc.Format) ||
         src_desc.SampleDesc.Count != 1 || dst_desc.SampleDesc.Count != 1) {
         return false;
     }

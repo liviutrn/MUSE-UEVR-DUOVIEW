@@ -82,6 +82,9 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> srv_heap_;
     Microsoft::WRL::ComPtr<ID3D12Resource> srv_source_;
     UINT srv_descriptor_size_{};
+    // Intermediate copy for DENY_SHADER_RESOURCE sources (UE5 render targets).
+    Microsoft::WRL::ComPtr<ID3D12Resource> intermediate_;
+    uint64_t intermediate_w_{}, intermediate_h_{};
 };
 
 } // namespace uevr::duoview::dx12

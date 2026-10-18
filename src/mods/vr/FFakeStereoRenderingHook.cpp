@@ -128,6 +128,16 @@
 #include "UE58OwnedUITexture.hpp"
 
 #include <tracy/Tracy.hpp>
+// DuoView: shared index base for the three stereo hooks. Previously each hook
+// had its own function-local static, which could diverge and swap the fovea/
+// periphery slots. Single shared state ensures consistent true_index.
+namespace {
+bool& duoview_shared_index_starts_from_one() {
+    static bool v = true;
+    return v;
+}
+}
+
 
 //#define FFAKE_STEREO_RENDERING_LOG_ALL_CALLS
 
@@ -29876,7 +29886,7 @@ void FFakeStereoRenderingHook::adjust_view_rect(FFakeStereoRendering* stereo, in
         return;
     }
 
-    static bool index_starts_from_one = true;
+    bool& index_starts_from_one = duoview_shared_index_starts_from_one();
     const bool medium_one_based_eye_pass = medium_is_current_game();
 
     if (!medium_one_based_eye_pass) {
@@ -29973,7 +29983,7 @@ __forceinline void FFakeStereoRenderingHook::calculate_stereo_view_offset(
     auto vr = VR::get();
     //std::scoped_lock _{vr->get_vr_mutex()};
 
-    static bool index_starts_from_one = true;
+    bool& index_starts_from_one = duoview_shared_index_starts_from_one();
     static bool index_was_ever_two = false;
     static bool index_was_ever_negative = false;
     const bool medium_one_based_eye_pass = medium_is_current_game();
@@ -30599,7 +30609,7 @@ __forceinline Matrix4x4f* FFakeStereoRenderingHook::calculate_stereo_projection_
         return out;
     }
 
-    static bool index_starts_from_one = true;
+    bool& index_starts_from_one = duoview_shared_index_starts_from_one();
     static bool index_was_ever_two = false;
 
     const bool medium_one_based_projection_pass = medium_is_current_game();

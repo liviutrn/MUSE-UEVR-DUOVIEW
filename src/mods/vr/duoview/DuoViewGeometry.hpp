@@ -3,7 +3,7 @@
 // Conventions (must match the UEVR baseline exactly):
 //   - Matrices are COLUMN-MAJOR, glm-style: m[col][row], 16-float initializer lists
 //     run column by column. (Verified against the baseline's common mono matrix:
-//     Matrix4x4f{1/h,0,0,0, 0,1/v,0,0, 0,0,0,near, 0,0,1,0}.)
+//     Matrix4x4f{1/h,0,0,0, 0,1/v,0,0, 0,0,0,1, 0,0,nearz,0}.)
 //   - +Z-forward view space, infinite far plane: NDC = (x/(h*z), y/(v*z), near/z).
 //     In particular m[2][3] == 1 (the v22 "+Z-forward" bugfix — do not flip this).
 //   - The "common basis" is Joey's common mono projection: symmetric tangents
