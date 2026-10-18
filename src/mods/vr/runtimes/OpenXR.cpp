@@ -2025,7 +2025,7 @@ VRRuntime::Error OpenXR::update_matrices(float nearz, float farz) {
             // slot), so ensure the manager is updated here as the authoritative
             // source. The foveal projection is derived from this snapshot.
             if (vr->is_duoview_hijack_active()) {
-                vr->duoview_manager().update(vr, this->projections[0]);
+                vr->duoview_manager().update(vr.get(), this->projections[0]);
             }
             if (this->should_recalculate_eye_projections || !this->has_valid_projection_data) {
                 // Keep allocation scaling stable until a projection/settings
