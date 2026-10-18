@@ -68,17 +68,15 @@ jobs:
       - name: Build and run DuoView host logic tests
         shell: pwsh
         run: |
-          # Pure-logic headers (geometry, gaze stabilizer, config): compile
-          # with MSVC and run. No GPU, no engine.
-          $cl = (Get-Command cl.exe -ErrorAction SilentlyContinue)
-          if ($null -eq $cl) {
-            $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-            Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
-            Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64'
-          }
-          cl /nologo /std:c++20 /EHsc /O2 /Fe:evidence\duoview_tests.exe src\mods\vr\duoview\tests\duoview_tests.cpp
-          if ($LASTEXITCODE -ne 0) { throw 'DuoView host tests failed to compile' }
-          .\evidence\duoview_tests.exe | Tee-Object evidence\duoview-host-tests.log
+          # Pure-logic headers (geometry, gaze stabilizer, config): build with
+          # CMake so MSVC is configured the same way as the backend. No GPU.
+          cmake -S src\mods\vr\duoview\tests -B duo_host_tests -G 'Visual Studio 17 2022' -A x64 *> evidence\host-tests-configure.log
+          $code = $LASTEXITCODE; Get-Content evidence\host-tests-configure.log | Select-Object -Last 30
+          if ($code -ne 0) { throw "Host tests configuration failed ($code)" }
+          cmake --build duo_host_tests --config Release *> evidence\host-tests-build.log
+          $code = $LASTEXITCODE; Get-Content evidence\host-tests-build.log | Select-Object -Last 30
+          if ($code -ne 0) { throw "Host tests build failed ($code)" }
+          .\duo_host_tests\Release\duoview_tests.exe | Tee-Object evidence\duoview-host-tests.log
           if ($LASTEXITCODE -ne 0) { throw 'DuoView host logic tests FAILED' }
 
       - name: Configure UEVR backend
