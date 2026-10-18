@@ -3910,8 +3910,11 @@ XrResult OpenXR::end_frame(const std::vector<XrCompositionLayerBaseHeader*>& qua
         SPDLOG_INFO_ONCE("[DeadIsland2][UE4.25][OpenXR] Submitting the AFR projection layer without depth");
     }
 
+    // DuoView: the hijack composites into DOUBLE_WIDE, never the array
+    // swapchain. Force the mono submit path when active.
     const auto has_native_stereo_array =
         !is_afr &&
+        !vr->is_duoview_hijack_active() &&
         vr->is_native_stereo_fix_texture_array_submit_enabled() &&
         this->swapchains.contains((uint32_t)OpenXR::SwapchainIndex::NATIVE_STEREO_ARRAY);
 

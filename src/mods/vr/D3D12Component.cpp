@@ -5277,6 +5277,13 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                         snapshot.fovea_v = 0.5f;
                         uevr::duoview::diagnostics().snapshots_synthesized.fetch_add(1, std::memory_order_relaxed);
                     }
+                    // Pair validation: if the projection hook didn't run for
+                    // this frame (stale frame_id), the backbuffer may not match
+                    // the snapshot. Fall back to periphery-only.
+                    if (snapshot.frame_id != 0 && snapshot.frame_id == m_duoview_last_frame_id) {
+                        snapshot.periphery_only = true;
+                    }
+                    m_duoview_last_frame_id = snapshot.frame_id;
                     // submitted: the copy was dispatched. composited: the GPU
                     // composite itself succeeded.
                     bool submitted = false;

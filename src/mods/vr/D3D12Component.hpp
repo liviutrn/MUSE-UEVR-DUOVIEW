@@ -228,6 +228,8 @@ private:
 
     ComPtr<ID3D12Resource> m_prev_backbuffer{};
     uevr::duoview::dx12::Compositor m_duoview_compositor{};
+    // Last DuoView snapshot frame_id composited (for stale detection).
+    uint64_t m_duoview_last_frame_id = 0;
     std::array<d3d12::CommandContext, 3> m_generic_commands{};
     std::chrono::steady_clock::time_point m_last_on_frame{};
     std::chrono::steady_clock::time_point m_last_frame_timing_log{};
