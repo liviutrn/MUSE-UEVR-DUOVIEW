@@ -102,6 +102,23 @@ void test_double_precision_matches_float() {
             CHECK_NEAR(mf[c][r], (float)md[c][r], 1e-6f);
 }
 
+// Regression: slow drift must accumulate via the smooth EMA state.
+// Without it, sub-cell steps never accumulated and the fovea stalled.
+void test_gaze_slow_drift_accumulates() {
+    GazeStabilizer st;
+    uint64_t t = 1000000;
+    float u = 0.5f, v = 0.5f;
+    st.update({0.5f, 0.5f, true}, t, u, v);
+    CHECK(u == 0.5f);
+    // Drift 0.001 UV/frame for 200 frames (0.2 UV total). Each step is below
+    // the deadband, but the cumulative drift far exceeds it.
+    for (int i = 1; i <= 200; ++i) {
+        t += 16667;
+        st.update({0.5f + i * 0.001f, 0.5f, true}, t, u, v);
+    }
+    CHECK(u > 0.5f);
+}
+
 // ---------------------------------------------------------------- gaze
 void test_gaze_first_sample_snaps() {
     GazeStabilizer st;
@@ -201,6 +218,7 @@ int main() {
     test_crop_clamp_at_edges();
     test_uv_roundtrip();
     test_double_precision_matches_float();
+    test_gaze_slow_drift_accumulates();
     test_gaze_first_sample_snaps();
     test_gaze_deadband_holds();
     test_gaze_saccade_moves_fast();

@@ -55,6 +55,7 @@ public:
     void reset() {
         has_output_ = false;
         out_u_ = 0.5f; out_v_ = 0.5f;
+        smooth_u_ = 0.5f; smooth_v_ = 0.5f;
         last_valid_us_ = 0;
         ever_valid_ = false;
     }
@@ -68,32 +69,29 @@ public:
             const float cu = clamp01(s.u), cv = clamp01(s.v);
             if (!has_output_) {
                 // First valid sample: snap immediately (no one is watching yet).
+                smooth_u_ = cu; smooth_v_ = cv;
                 out_u_ = quantize(cu); out_v_ = quantize(cv);
                 has_output_ = true;
             } else {
-                const float dx = cu - out_u_, dy = cv - out_v_;
+                // Measure against the smooth (non-quantized) position so the
+                // EMA accumulates across frames even when the quantized output
+                // hasn't moved yet.
+                const float dx = cu - smooth_u_, dy = cv - smooth_v_;
                 const float dist = std::sqrt(dx*dx + dy*dy);
                 if (dist >= params_.deadband) {
-                    // Snap zone: when close, jump straight to the target's
-                    // cell instead of creeping in sub-grid steps (which would
-                    // stall forever once alpha*dist < half a cell).
-                    const float snap_dist = 1.5f / (float)params_.grid_divisions;
-                    float nu, nv;
-                    if (dist <= snap_dist) {
-                        nu = quantize(cu);
-                        nv = quantize(cv);
-                    } else {
-                        // Adaptive blend: 0 at deadband edge -> 1 at saccade_blend.
-                        float t = (dist - params_.deadband) /
-                                  std::fmax(params_.saccade_blend - params_.deadband, 1e-6f);
-                        t = clamp01(t);
-                        const float alpha = params_.slow_alpha +
-                            t * (params_.fast_alpha - params_.slow_alpha);
-                        nu = quantize(out_u_ + alpha * dx);
-                        nv = quantize(out_v_ + alpha * dy);
-                    }
-                    // Only publish when the quantized value actually changed:
-                    // this is what keeps the projection matrix bit-stable.
+                    // Adaptive blend: 0 at deadband edge -> 1 at saccade_blend.
+                    float t = (dist - params_.deadband) /
+                              std::fmax(params_.saccade_blend - params_.deadband, 1e-6f);
+                    t = clamp01(t);
+                    const float alpha = params_.slow_alpha +
+                        t * (params_.fast_alpha - params_.slow_alpha);
+                    smooth_u_ = clamp01(smooth_u_ + alpha * dx);
+                    smooth_v_ = clamp01(smooth_v_ + alpha * dy);
+                    // Quantize for output. Only publish when the quantized
+                    // value actually changed: this is what keeps the projection
+                    // matrix bit-stable during fixation.
+                    const float nu = quantize(smooth_u_);
+                    const float nv = quantize(smooth_v_);
                     if (nu != out_u_ || nv != out_v_) {
                         out_u_ = nu; out_v_ = nv;
                     }
@@ -124,6 +122,10 @@ private:
     bool has_output_{};
     bool ever_valid_{};
     float out_u_{}, out_v_{};
+    // Non-quantized EMA state. The EMA accumulates here even when the
+    // quantized output is stable; without this, sub-cell steps would
+    // never accumulate and slow drifts would stall forever.
+    float smooth_u_{}, smooth_v_{};
     uint64_t last_valid_us_{};
 };
 
