@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cstring>
 
+#include <spdlog/spdlog.h>
+
 namespace {
 // DuoViewComposite.hlsl embedded for D3DCompile at initialize().
 // This copy is authoritative; DuoViewComposite.hlsl is the readable reference.
@@ -163,16 +165,27 @@ bool Compositor::initialize(ID3D12Device* device) {
     }
 
     // Compile the composite shader once (initialize time, never per-frame).
-    Microsoft::WRL::ComPtr<ID3DBlob> vs_blob, ps_blob, compile_error;
+    // Robust: logs the exact HLSL error if compilation fails, so a bad shader
+    // can never silently disable DuoView.
+    Microsoft::WRL::ComPtr<ID3DBlob> vs_blob, ps_blob;
     const UINT compile_flags = D3DCOMPILE_OPTIMIZATION_LEVEL3;
-    if (FAILED(D3DCompile(kDuoViewCompositeHlsl, strlen(kDuoViewCompositeHlsl), nullptr,
-                          nullptr, nullptr, "VSMain", "vs_5_0", compile_flags, 0,
-                          &vs_blob, &compile_error))) {
+    auto compile = [&](const char* entry, const char* target, ID3DBlob** out) -> bool {
+        Microsoft::WRL::ComPtr<ID3DBlob> errors;
+        const HRESULT hr = D3DCompile(kDuoViewCompositeHlsl, strlen(kDuoViewCompositeHlsl), nullptr,
+                                      nullptr, nullptr, entry, target, compile_flags, 0,
+                                      out, &errors);
+        if (FAILED(hr)) {
+            const char* msg = errors ? (const char*)errors->GetBufferPointer() : "(no error blob)";
+            spdlog::error("[DuoView] Shader compile failed ({} {}): hr=0x{:08x}: {}",
+                          entry, target, (uint32_t)hr, msg);
+            return false;
+        }
+        return true;
+    };
+    if (!compile("VSMain", "vs_5_0", &vs_blob)) {
         return false;
     }
-    if (FAILED(D3DCompile(kDuoViewCompositeHlsl, strlen(kDuoViewCompositeHlsl), nullptr,
-                          nullptr, nullptr, "PSMain", "ps_5_0", compile_flags, 0,
-                          &ps_blob, &compile_error))) {
+    if (!compile("PSMain", "ps_5_0", &ps_blob)) {
         return false;
     }
 

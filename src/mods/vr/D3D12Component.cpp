@@ -5252,14 +5252,12 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     // Lazy one-time initialize (shader compile + PSO).
                     // Safe without a lock: on_frame runs on the single render
                     // thread and the compositor is touched nowhere else.
+                    // Persistent retry: initialize() is idempotent and
+                    // early-returns when already initialized. If it keeps
+                    // failing (e.g. D3DCompile), we keep trying every frame
+                    // rather than giving up — the compositor must work.
                     if (!m_duoview_compositor.initialized()) {
                         m_duoview_compositor.initialize(device);
-                    }
-                    if (!m_duoview_compositor.initialized()) {
-                        // Compositor is dead (e.g. D3DCompile failed): disable
-                        // the hijack so we fall back to normal stereo instead
-                        // of submitting black frames.
-                        vr->m_duoview_disabled = true;
                     }
                     if (!snapshot.valid) {
                         // First frame (or degenerate matrix): synthesize a

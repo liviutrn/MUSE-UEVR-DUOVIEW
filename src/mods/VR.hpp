@@ -1932,9 +1932,6 @@ private:
     const ModToggle::Ptr m_duoview_debug_border{ ModToggle::create(generate_name("DuoViewDebugBorder"), false) };
     // DuoView per-frame state; inert unless the hijack is active.
     const std::unique_ptr<uevr::duoview::Manager> m_duoview_manager{ std::make_unique<uevr::duoview::Manager>() };
-    // Set if the DuoView compositor failed to initialize; disables the hijack
-    // so we fall back to normal stereo instead of black frames.
-    bool m_duoview_disabled = false;
 
     const ModSlider::Ptr m_custom_z_near{ ModSlider::create(generate_name("CustomZNear"), 0.001f, 100.0f, 0.01f, true) };
     const ModToggle::Ptr m_custom_z_near_enabled{ ModToggle::create(generate_name("EnableCustomZNear"), false, true) };
