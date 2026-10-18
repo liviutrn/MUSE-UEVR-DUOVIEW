@@ -17295,6 +17295,9 @@ Matrix4x4f VR::get_eye_transform(uint32_t index) {
 // v1 scope is D3D12 + OpenXR; every other renderer/runtime keeps true stereo,
 // so this predicate is the single gate for all five interception points.
 bool VR::is_duoview_hijack_active() const {
+    if (m_duoview_disabled) {
+        return false;
+    }
     if (m_rendering_method->value() != RenderingMethod::NATIVE_STEREO || is_using_afr()) {
         return false;
     }

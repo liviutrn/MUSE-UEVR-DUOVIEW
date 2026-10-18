@@ -5246,7 +5246,7 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                 // mono image and duplicate it to both swapchain halves. This branch
                 // runs instead of every other scene-copy path below.
                 if (vr->is_duoview_hijack_active()) {
-                    const auto snapshot = vr->duoview_manager().snapshot();
+                    auto snapshot = vr->duoview_manager().snapshot();
                     const auto slot_w = vr->get_hmd_width();
                     const auto slot_h = vr->get_hmd_height();
                     // Lazy one-time initialize (shader compile + PSO).
@@ -5255,11 +5255,26 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     if (!m_duoview_compositor.initialized()) {
                         m_duoview_compositor.initialize(device);
                     }
+                    if (!m_duoview_compositor.initialized()) {
+                        // Compositor is dead (e.g. D3DCompile failed): disable
+                        // the hijack so we fall back to normal stereo instead
+                        // of submitting black frames.
+                        vr->m_duoview_disabled = true;
+                    }
+                    if (!snapshot.valid) {
+                        // First frame (or degenerate matrix): synthesize a
+                        // default fixed-center snapshot so we always submit
+                        // an image instead of skipping the copy.
+                        snapshot.valid = true;
+                        snapshot.config = vr->duoview_config();
+                        snapshot.fovea_u = 0.5f;
+                        snapshot.fovea_v = 0.5f;
+                    }
                     // submitted: the copy was dispatched. composited: the GPU
                     // composite itself succeeded.
                     bool submitted = false;
                     bool composited = false;
-                    if (snapshot.valid && slot_w > 0 && slot_h > 0) {
+                    if (slot_w > 0 && slot_h > 0) {
                         submitted = m_openxr.copy(
                             (uint32_t)runtimes::OpenXR::SwapchainIndex::DOUBLE_WIDE, nullptr,
                             [source = backbuffer, scene_source_state, device, snapshot, slot_w, slot_h,
