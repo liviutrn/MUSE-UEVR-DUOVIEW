@@ -30704,7 +30704,7 @@ __forceinline Matrix4x4f* FFakeStereoRenderingHook::calculate_stereo_projection_
             auto& manager = vr->duoview_manager();
             // *out was just assigned the LEFT common matrix above; derive the
             // crop from the exact matrix being replaced.
-            manager.update(vr, *out);
+            manager.update(vr.get(), *out);
             if (const auto foveal = manager.foveal_projection()) {
                 if (!g_hook->m_has_double_precision) {
                     *out = *foveal;

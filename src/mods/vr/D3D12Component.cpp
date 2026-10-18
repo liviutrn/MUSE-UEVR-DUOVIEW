@@ -1,5 +1,5 @@
 #include <d3dcompiler.h>
-#include "vr/duoview/DuoViewDiagnostics.hpp"
+#include "duoview/DuoViewDiagnostics.hpp"
 
 #include <openvr.h>
 #include <utility/Module.hpp>
