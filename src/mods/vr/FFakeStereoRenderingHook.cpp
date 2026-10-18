@@ -128,16 +128,6 @@
 #include "UE58OwnedUITexture.hpp"
 
 #include <tracy/Tracy.hpp>
-// DuoView: shared index base for the three stereo hooks. Previously each hook
-// had its own function-local static, which could diverge and swap the fovea/
-// periphery slots. Single shared state ensures consistent true_index.
-namespace {
-bool& duoview_shared_index_starts_from_one() {
-    static bool v = true;
-    return v;
-}
-}
-
 
 //#define FFAKE_STEREO_RENDERING_LOG_ALL_CALLS
 
@@ -29886,7 +29876,7 @@ void FFakeStereoRenderingHook::adjust_view_rect(FFakeStereoRendering* stereo, in
         return;
     }
 
-    bool& index_starts_from_one = duoview_shared_index_starts_from_one();
+    static bool index_starts_from_one = true;
     const bool medium_one_based_eye_pass = medium_is_current_game();
 
     if (!medium_one_based_eye_pass) {
@@ -29983,7 +29973,7 @@ __forceinline void FFakeStereoRenderingHook::calculate_stereo_view_offset(
     auto vr = VR::get();
     //std::scoped_lock _{vr->get_vr_mutex()};
 
-    bool& index_starts_from_one = duoview_shared_index_starts_from_one();
+    static bool index_starts_from_one = true;
     static bool index_was_ever_two = false;
     static bool index_was_ever_negative = false;
     const bool medium_one_based_eye_pass = medium_is_current_game();
@@ -30609,7 +30599,7 @@ __forceinline Matrix4x4f* FFakeStereoRenderingHook::calculate_stereo_projection_
         return out;
     }
 
-    bool& index_starts_from_one = duoview_shared_index_starts_from_one();
+    static bool index_starts_from_one = true;
     static bool index_was_ever_two = false;
 
     const bool medium_one_based_projection_pass = medium_is_current_game();
@@ -30708,18 +30698,33 @@ __forceinline Matrix4x4f* FFakeStereoRenderingHook::calculate_stereo_projection_
         }
         // DuoView: slot 1 (periphery) keeps the common mono projection written
         // above (update_matrices serves it for the hijack). Slot 0 (fovea) is
-        // replaced with the crop derived from the same common basis, and the
-        // snapshot the D3D12 composite will read is refreshed here.
-        if (vr->is_duoview_hijack_active() && true_index == 0) {
+        // replaced with the crop derived from the same common basis.
+        // The manager is updated authoritatively in OpenXR::update_matrices;
+        // we refresh here too (idempotent) for the game-thread path.
+        if (vr->is_duoview_hijack_active()) {
             auto& manager = vr->duoview_manager();
-            // *out was just assigned the LEFT common matrix above; derive the
-            // crop from the exact matrix being replaced.
             manager.update(vr.get(), *out);
-            if (const auto foveal = manager.foveal_projection()) {
-                if (!g_hook->m_has_double_precision) {
-                    *out = *foveal;
-                } else {
-                    double_matrix = *foveal;
+            // Apply the foveal crop to slot 0. The true_index detection can
+            // be unreliable, so we use a first-view-per-frame fallback:
+            // the first view processed in each frame gets the fovea if
+            // true_index didn't identify it.
+            static uint64_t last_frame_seq = 0;
+            static bool fovea_done = false;
+            const auto sid = manager.snapshot().frame_id;
+            if (sid != last_frame_seq) {
+                last_frame_seq = sid;
+                fovea_done = false;
+            }
+            if (!fovea_done) {
+                // Apply to the first view of each frame. Robust against
+                // true_index misdetection.
+                if (const auto foveal = manager.foveal_projection()) {
+                    if (!g_hook->m_has_double_precision) {
+                        *out = *foveal;
+                    } else {
+                        double_matrix = *foveal;
+                    }
+                    fovea_done = true;
                 }
             }
         }

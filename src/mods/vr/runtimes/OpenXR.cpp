@@ -2020,6 +2020,13 @@ VRRuntime::Error OpenXR::update_matrices(float nearz, float farz) {
                     0, 0, 0, 1,
                     0, 0, nearz, 0};
             }
+            // DuoView: publish the per-frame snapshot from the common basis.
+            // The FFakeStereoRenderingHook may not run (or may misidentify the
+            // slot), so ensure the manager is updated here as the authoritative
+            // source. The foveal projection is derived from this snapshot.
+            if (vr->is_duoview_hijack_active()) {
+                vr->duoview_manager().update(vr, this->projections[0]);
+            }
             if (this->should_recalculate_eye_projections || !this->has_valid_projection_data) {
                 // Keep allocation scaling stable until a projection/settings
                 // reset, just like the ordinary path. Calibration noise must

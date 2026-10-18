@@ -729,6 +729,9 @@ public:
 
     bool is_native_stereo_fix_texture_array_submit_enabled() const {
         if (uevr::nascar::is_target()) { return false; }
+        // DuoView hijacks Native Stereo; the texture-array path is incompatible
+        // and must never activate (it crashes the D3D12 RHI).
+        if (is_duoview_hijack_active()) { return false; }
         const auto runtime = get_runtime();
         return m_native_stereo_fix_texture_array_submit->value() &&
             is_native_stereo_fix_enabled() &&
