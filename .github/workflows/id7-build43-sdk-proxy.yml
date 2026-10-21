@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
-          ref: 9c1ef51a4b4c0a7a87fe38eba70419ff8df0bbcb
+          ref: f3cddb9d53e1677aa701896a685439adcf59039b
           path: workspace
           fetch-depth: 0
           persist-credentials: false
@@ -38,7 +38,7 @@ jobs:
         with:
           repository: joeyhodge/UEVR
           ref: 5ac7edc207866569334175e4ed8a7517971547f6
-          fetch-depth: 0
+          fetch-depth: 1
           path: backend
           persist-credentials: false
       - name: Require the SDK source credential
