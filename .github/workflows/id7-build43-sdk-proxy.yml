@@ -206,8 +206,8 @@ jobs:
         with:
           name: UEVR-QuadViews-ID7-Compiled-${{ github.run_number }}
           path: |
-            UEVR-QuadViews-ID7-Compiled-*.zip
-            UEVR-QuadViews-ID7-Compiled-*.zip.sha256
+            UEVR-QuadViews-Build43-NativePair-Experimental-*.zip
+            UEVR-QuadViews-Build43-NativePair-Experimental-*.zip.sha256
           if-no-files-found: error
           retention-days: 90
       - name: Preserve compiled outputs if packaging fails
