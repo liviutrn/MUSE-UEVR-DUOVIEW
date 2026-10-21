@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
-          ref: 45009547217f10591c239f9da7027dc31b19da69
+          ref: 96cf3c37c7cbc10e5faf5c379f4c02a4dca840ff
           path: workspace
           fetch-depth: 0
           persist-credentials: false
