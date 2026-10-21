@@ -1,9 +1,9 @@
-name: ID7 QuadViews authorized Windows build
+name: Build43 NativePair experimental Windows DLL
 # Build43 native pair experimental branch candidate; default one-pass remains Build40.
 run-name: ID7 QuadViews compiled Windows DLL (${{ github.run_number }})
 on:
   push:
-    branches: [experiment/id7-build43-sdk-build-proxy-20261021]
+    branches: [experiment/id7-build43-sdk-build-final-20261021]
     paths: ['.github/workflows/id7-build43-sdk-proxy.yml']
   workflow_dispatch:
 permissions:
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
-          ref: experiment/id7-build43-full-nativefix-20261021
+          ref: f720400a7f91964bd60c619e8cecb2941f177de3
           path: workspace
           fetch-depth: 0
           persist-credentials: false
@@ -198,7 +198,7 @@ jobs:
           if (@(Get-ChildItem package -File -Filter *.exe).Count -lt 1) { throw "Missing Joey frontend executable" }
           if ((Get-Content package/READ_FIRST.txt -Raw) -notmatch 'ID7') { throw 'Missing stereo QuadView instructions' }
           Get-ChildItem package -Recurse -File | Get-FileHash -Algorithm SHA256 | ConvertTo-Json | Set-Content evidence/package-sha256.json
-          $zip="UEVR-QuadViews-ID7-Compiled-${{ github.run_number }}.zip"
+          $zip="UEVR-QuadViews-Build43-NativePair-Experimental-${{ github.run_number }}.zip"
           Compress-Archive -Path package/* -DestinationPath $zip -Force
           (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256"
       - uses: actions/upload-artifact@v4
