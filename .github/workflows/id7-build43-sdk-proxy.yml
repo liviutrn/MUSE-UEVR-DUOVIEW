@@ -1,5 +1,5 @@
-name: Build44 four-source Native Stereo Fix Windows DLL
-# Build44 four-source Native Stereo Fix; pinned reviewed overlay.
+name: Build45 four-source Native Stereo Fix Windows DLL
+# Build45 four-source Native Stereo Fix; pinned reviewed overlay.
 run-name: ID7 QuadViews compiled Windows DLL (${{ github.run_number }})
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
-          ref: 651911be8a2fa84556572cd118fb6f0421056305
+          ref: 8dc607b3cd7477375af5eb2c5e1a83f4724e6a00
           path: workspace
           fetch-depth: 0
           persist-credentials: false
@@ -202,7 +202,7 @@ jobs:
           if (@(Get-ChildItem package -File -Filter *.exe).Count -lt 1) { throw "Missing Joey frontend executable" }
           if ((Get-Content package/READ_FIRST.txt -Raw) -notmatch 'ID7') { throw 'Missing stereo QuadView instructions' }
           Get-ChildItem package -Recurse -File | Get-FileHash -Algorithm SHA256 | ConvertTo-Json | Set-Content evidence/package-sha256.json
-          $zip="UEVR-QuadViews-Build44-NativeStereoFix-${{ github.run_number }}.zip"
+          $zip="UEVR-QuadViews-Build45-NativeStereoFix-${{ github.run_number }}.zip"
           Compress-Archive -Path package/* -DestinationPath $zip -Force
           (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256"
       - uses: actions/upload-artifact@v4
@@ -210,8 +210,8 @@ jobs:
         with:
           name: UEVR-QuadViews-ID7-Compiled-${{ github.run_number }}
           path: |
-            UEVR-QuadViews-Build44-NativeStereoFix-*.zip
-            UEVR-QuadViews-Build44-NativeStereoFix-*.zip.sha256
+            UEVR-QuadViews-Build45-NativeStereoFix-*.zip
+            UEVR-QuadViews-Build45-NativeStereoFix-*.zip.sha256
           if-no-files-found: error
           retention-days: 90
       - name: Preserve compiled outputs if packaging fails
