@@ -1,5 +1,5 @@
-name: Build46 four-source Native Stereo Fix Windows DLL
-# Build46 four-source Native Stereo Fix; pinned reviewed overlay.
+name: Build47 bounded diagnostics Native Stereo Fix Windows DLL
+# Build47 bounded on-demand diagnostics follow-up; pinned reviewed overlay.
 run-name: ID7 QuadViews compiled Windows DLL (${{ github.run_number }})
 on:
   push:
@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: build44-proxy-${{ github.ref }}
+  group: build47-proxy-${{ github.ref }}
   cancel-in-progress: true
 env:
   PYTHONDONTWRITEBYTECODE: '1'
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
-          ref: af215afd3a0a624d9c1878e96e836fa9fbf26a4d
+          ref: 20d96b2f825b7b23a4465e7c145dda421d4d0122
           path: workspace
           fetch-depth: 0
           persist-credentials: false
@@ -196,29 +196,33 @@ jobs:
           Copy-Item workspace/quadview/GLAMARYE_LICENSE.txt package/GLAMARYE_LICENSE.txt
           Copy-Item evidence/quadview-source.json package/
           Copy-Item evidence/quadview-source-generated.json package/
-          @{ build='46'; baseline='Build40; reviewed four-source Native Stereo Fix adaptation'; baselineSource='7486fc59890b14673cd50770b0dafeb692576716'; overlay=(git -C workspace rev-parse HEAD).Trim(); run=$env:GITHUB_RUN_ID; mode='ID7 stereo quad views'; headsetVerified=$false } | ConvertTo-Json | Set-Content package/QUADVIEW_BUILD.json
-          $needed=@('UEVRBackend.dll','UEVRPluginNullifier.dll','LuaVR.dll','READ_FIRST.txt','QUADVIEW_RELEASE_NOTES.md','GLAMARYE_LICENSE.txt','duoview-stage234-hashes.json','exact-baseline-source.json','quadview-source.json','quadview-source-generated.json','QUADVIEW_BUILD.json')
+          Copy-Item workspace/quadview/BUILD46_FINDINGS_STATUS.md package/BUILD46_FINDINGS_STATUS.md
+          Copy-Item workspace/quadview/FUTURE_LUNA_REVIEW.md package/FUTURE_LUNA_REVIEW.md
+          Copy-Item workspace/quadview/FUTURE_SOL61_REVIEW.md package/FUTURE_SOL61_REVIEW.md
+          Copy-Item workspace/quadview/PERFORMANCE_AND_ADAPTIVE_FPS_PLAN.md package/PERFORMANCE_AND_ADAPTIVE_FPS_PLAN.md
+          @{ build='47'; baseline='Build46; bounded on-demand diagnostics follow-up; accepted stereo geometry lineage Build40'; baselineSource='7486fc59890b14673cd50770b0dafeb692576716'; overlay=(git -C workspace rev-parse HEAD).Trim(); run=$env:GITHUB_RUN_ID; mode='ID7 stereo quad views; bounded on-demand diagnostics'; headsetVerified=$false } | ConvertTo-Json | Set-Content package/QUADVIEW_BUILD.json
+          $needed=@('UEVRBackend.dll','UEVRPluginNullifier.dll','LuaVR.dll','READ_FIRST.txt','QUADVIEW_RELEASE_NOTES.md','GLAMARYE_LICENSE.txt','BUILD46_FINDINGS_STATUS.md','FUTURE_LUNA_REVIEW.md','FUTURE_SOL61_REVIEW.md','PERFORMANCE_AND_ADAPTIVE_FPS_PLAN.md','duoview-stage234-hashes.json','exact-baseline-source.json','quadview-source.json','quadview-source-generated.json','QUADVIEW_BUILD.json')
           foreach ($name in $needed) { if (!(Test-Path ("package/" + $name))) { throw "Missing critical package file: $name" } }
           if (@(Get-ChildItem package -File -Filter *.exe).Count -lt 1) { throw "Missing Joey frontend executable" }
           if ((Get-Content package/READ_FIRST.txt -Raw) -notmatch 'ID7') { throw 'Missing stereo QuadView instructions' }
           Get-ChildItem package -Recurse -File | Get-FileHash -Algorithm SHA256 | ConvertTo-Json | Set-Content evidence/package-sha256.json
-          $zip="UEVR-QuadViews-Build46-NativeStereoFix-${{ github.run_number }}.zip"
+          $zip="UEVR-QuadViews-Build47-NativeStereoFix-${{ github.run_number }}.zip"
           Compress-Archive -Path package/* -DestinationPath $zip -Force
           (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256"
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: UEVR-QuadViews-ID7-Compiled-${{ github.run_number }}
+          name: UEVR-QuadViews-ID7-Build47-Compiled-${{ github.run_number }}
           path: |
-            UEVR-QuadViews-Build46-NativeStereoFix-*.zip
-            UEVR-QuadViews-Build46-NativeStereoFix-*.zip.sha256
+            UEVR-QuadViews-Build47-NativeStereoFix-*.zip
+            UEVR-QuadViews-Build47-NativeStereoFix-*.zip.sha256
           if-no-files-found: error
           retention-days: 90
       - name: Preserve compiled outputs if packaging fails
         if: failure() && steps.build_backend.outcome == 'success' && steps.build_frontend.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: QuadView-Compiled-Debug-${{ github.run_number }}
+          name: QuadView-Build47-Compiled-Debug-${{ github.run_number }}
           path: |
             backend/build/bin/uevr/*.dll
             backend/build/bin/vr-plugin-nullifier/*.dll
@@ -239,7 +243,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: QuadView-Stereo-Evidence-${{ github.run_number }}
+          name: QuadView-Build47-Stereo-Evidence-${{ github.run_number }}
           path: evidence/
           if-no-files-found: error
 
