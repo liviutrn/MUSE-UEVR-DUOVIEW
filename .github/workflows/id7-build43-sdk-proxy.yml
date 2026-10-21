@@ -1,5 +1,5 @@
-name: Build45 four-source Native Stereo Fix Windows DLL
-# Build45 four-source Native Stereo Fix; pinned reviewed overlay.
+name: Build46 four-source Native Stereo Fix Windows DLL
+# Build46 four-source Native Stereo Fix; pinned reviewed overlay.
 run-name: ID7 QuadViews compiled Windows DLL (${{ github.run_number }})
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
-          ref: 8dc607b3cd7477375af5eb2c5e1a83f4724e6a00
+          ref: 45009547217f10591c239f9da7027dc31b19da69
           path: workspace
           fetch-depth: 0
           persist-credentials: false
@@ -196,13 +196,13 @@ jobs:
           Copy-Item workspace/quadview/GLAMARYE_LICENSE.txt package/GLAMARYE_LICENSE.txt
           Copy-Item evidence/quadview-source.json package/
           Copy-Item evidence/quadview-source-generated.json package/
-          @{ baseline='Build40; four-source Native Stereo Fix adaptation'; baselineSource='7486fc59890b14673cd50770b0dafeb692576716'; overlay=(git -C workspace rev-parse HEAD).Trim(); run=$env:GITHUB_RUN_ID; mode='ID7 stereo quad views'; headsetVerified=$false } | ConvertTo-Json | Set-Content package/QUADVIEW_BUILD.json
+          @{ build='46'; baseline='Build40; reviewed four-source Native Stereo Fix adaptation'; baselineSource='7486fc59890b14673cd50770b0dafeb692576716'; overlay=(git -C workspace rev-parse HEAD).Trim(); run=$env:GITHUB_RUN_ID; mode='ID7 stereo quad views'; headsetVerified=$false } | ConvertTo-Json | Set-Content package/QUADVIEW_BUILD.json
           $needed=@('UEVRBackend.dll','UEVRPluginNullifier.dll','LuaVR.dll','READ_FIRST.txt','QUADVIEW_RELEASE_NOTES.md','GLAMARYE_LICENSE.txt','duoview-stage234-hashes.json','exact-baseline-source.json','quadview-source.json','quadview-source-generated.json','QUADVIEW_BUILD.json')
           foreach ($name in $needed) { if (!(Test-Path ("package/" + $name))) { throw "Missing critical package file: $name" } }
           if (@(Get-ChildItem package -File -Filter *.exe).Count -lt 1) { throw "Missing Joey frontend executable" }
           if ((Get-Content package/READ_FIRST.txt -Raw) -notmatch 'ID7') { throw 'Missing stereo QuadView instructions' }
           Get-ChildItem package -Recurse -File | Get-FileHash -Algorithm SHA256 | ConvertTo-Json | Set-Content evidence/package-sha256.json
-          $zip="UEVR-QuadViews-Build45-NativeStereoFix-${{ github.run_number }}.zip"
+          $zip="UEVR-QuadViews-Build46-NativeStereoFix-${{ github.run_number }}.zip"
           Compress-Archive -Path package/* -DestinationPath $zip -Force
           (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256"
       - uses: actions/upload-artifact@v4
@@ -210,8 +210,8 @@ jobs:
         with:
           name: UEVR-QuadViews-ID7-Compiled-${{ github.run_number }}
           path: |
-            UEVR-QuadViews-Build45-NativeStereoFix-*.zip
-            UEVR-QuadViews-Build45-NativeStereoFix-*.zip.sha256
+            UEVR-QuadViews-Build46-NativeStereoFix-*.zip
+            UEVR-QuadViews-Build46-NativeStereoFix-*.zip.sha256
           if-no-files-found: error
           retention-days: 90
       - name: Preserve compiled outputs if packaging fails
