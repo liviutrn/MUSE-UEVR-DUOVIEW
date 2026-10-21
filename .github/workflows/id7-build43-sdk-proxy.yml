@@ -1,4 +1,5 @@
 name: ID7 QuadViews authorized Windows build
+# Build43 native pair experimental branch candidate; default one-pass remains Build40.
 run-name: ID7 QuadViews compiled Windows DLL (${{ github.run_number }})
 on:
   push:
