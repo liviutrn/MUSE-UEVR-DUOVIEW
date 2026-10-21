@@ -1,5 +1,5 @@
-name: Build 43 SDK-authenticated Windows compile
-run-name: Build43 Windows DLL (authenticated SDK)
+name: ID7 QuadViews authorized Windows build
+run-name: ID7 QuadViews compiled Windows DLL (${{ github.run_number }})
 on:
   push:
     branches: [experiment/id7-build43-sdk-build-proxy-20261021]
@@ -191,22 +191,22 @@ jobs:
           Copy-Item workspace/quadview/GLAMARYE_LICENSE.txt package/GLAMARYE_LICENSE.txt
           Copy-Item evidence/quadview-source.json package/
           Copy-Item evidence/quadview-source-generated.json package/
-          @{ baseline='Build40; Build43 experiment'; baselineSource='67c6e1ec5b931d2922e0ef5d253b8e9bef7a1a80'; overlay=(git -C workspace rev-parse HEAD).Trim(); run=$env:GITHUB_RUN_ID; mode='ID7 stereo quad views'; headsetVerified=$false } | ConvertTo-Json | Set-Content package/QUADVIEW_BUILD.json
+          @{ baseline='Build40; ID7 compilation, rendering changes must be verified separately'; baselineSource='67c6e1ec5b931d2922e0ef5d253b8e9bef7a1a80'; overlay=(git -C workspace rev-parse HEAD).Trim(); run=$env:GITHUB_RUN_ID; mode='ID7 stereo quad views'; headsetVerified=$false } | ConvertTo-Json | Set-Content package/QUADVIEW_BUILD.json
           $needed=@('UEVRBackend.dll','UEVRPluginNullifier.dll','LuaVR.dll','READ_FIRST.txt','QUADVIEW_RELEASE_NOTES.md','GLAMARYE_LICENSE.txt','duoview-stage234-hashes.json','exact-baseline-source.json','quadview-source.json','quadview-source-generated.json','QUADVIEW_BUILD.json')
           foreach ($name in $needed) { if (!(Test-Path ("package/" + $name))) { throw "Missing critical package file: $name" } }
           if (@(Get-ChildItem package -File -Filter *.exe).Count -lt 1) { throw "Missing Joey frontend executable" }
           if ((Get-Content package/READ_FIRST.txt -Raw) -notmatch 'ID7') { throw 'Missing stereo QuadView instructions' }
           Get-ChildItem package -Recurse -File | Get-FileHash -Algorithm SHA256 | ConvertTo-Json | Set-Content evidence/package-sha256.json
-          $zip="UEVR-QuadViews-Build43-Candidate-${{ github.run_number }}.zip"
+          $zip="UEVR-QuadViews-ID7-Compiled-${{ github.run_number }}.zip"
           Compress-Archive -Path package/* -DestinationPath $zip -Force
           (Get-FileHash $zip -Algorithm SHA256).Hash | Set-Content "$zip.sha256"
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: UEVR-QuadViews-Build43-Candidate-${{ github.run_number }}
+          name: UEVR-QuadViews-ID7-Compiled-${{ github.run_number }}
           path: |
-            UEVR-QuadViews-Build43-Candidate-*.zip
-            UEVR-QuadViews-Build43-Candidate-*.zip.sha256
+            UEVR-QuadViews-ID7-Compiled-*.zip
+            UEVR-QuadViews-ID7-Compiled-*.zip.sha256
           if-no-files-found: error
           retention-days: 90
       - name: Preserve compiled outputs if packaging fails
