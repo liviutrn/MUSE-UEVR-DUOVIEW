@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
-          ref: 5293a937cc444bf8a77a8a0ee21cf6933322fd17
+          ref: 026395db6c887c5c43dc753f354b09aa152ab3e8
           path: workspace
           fetch-depth: 0
           persist-credentials: false
@@ -259,7 +259,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
-          ref: 5293a937cc444bf8a77a8a0ee21cf6933322fd17
+          ref: 026395db6c887c5c43dc753f354b09aa152ab3e8
           persist-credentials: false
       - name: Run production-header recovery and ownership tests with ASan and UBSan
         shell: bash
