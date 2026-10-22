@@ -1,0 +1,131 @@
+name: Reconstruct Build50 crash symbols
+# Exact per-role frame binding; original backend/SDK/frontend pins.
+run-name: ID7 QuadViews compiled Windows DLL (${{ github.run_number }})
+on:
+  push:
+    branches: [diag/id7-build50-symbols-20261023]
+    paths: ['.github/workflows/id7-build50-symbols.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build50-symbols-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+jobs:
+  quadview-stereo-output:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: liviutrn/UEVR-Quad-Views-Mono
+          ref: 6ae122e8f56a5cf6fd0d79f5013324d526a5a2fb
+          path: workspace
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify preserved DuoView baseline against pinned ID7 parent
+        shell: pwsh
+        run: |
+          $baseline='f0a6be707d1c03f2b6c6bf01982f001aa403e073'
+          git -C workspace merge-base --is-ancestor $baseline HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Experimental ID7 is not descended from its pinned original source' }
+          git -C workspace diff --exit-code $baseline HEAD -- duoview scripts/verify_baseline.py BASELINE_SOURCE_SHA256SUMS
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned DuoView baseline or integrity verifier changed' }
+          Write-Host 'Preserved DuoView source is identical to pinned original ID7 parent'
+      - uses: actions/checkout@v4
+        with:
+          repository: joeyhodge/UEVR
+          ref: 5ac7edc207866569334175e4ed8a7517971547f6
+          fetch-depth: 1
+          path: backend
+          persist-credentials: false
+      - name: Require the SDK source credential
+        shell: pwsh
+        env:
+          SDK_SOURCE_TOKEN: ${{ secrets.UEVR_SOURCE_TOKEN || secrets.PAT_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SDK_SOURCE_TOKEN)) {
+            throw 'Add the repository Actions secret UEVR_SOURCE_TOKEN using a token from your Epic-authorized GitHub account; the default repository token cannot access this SDK.'
+          }
+          'Configured SDK source credential detected; access will be checked against the exact original repository.'
+      - name: Check out the original restricted SDK at the exact gitlink
+        uses: actions/checkout@v4
+        with:
+          repository: joeyhodge/UESDK
+          ref: 3cffbc82429b6165ceec2714f0f0d9ae48f55596
+          token: ${{ secrets.UEVR_SOURCE_TOKEN || secrets.PAT_TOKEN }}
+          path: backend/dependencies/submodules/UESDK
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: joeyhodge/uevr-frontend
+          ref: 60be4b0f9a646109fd9fdf448bacd41477234091
+          path: frontend
+          persist-credentials: false
+      - name: Verify the unchanged exact source and public dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory evidence -Force | Out-Null
+          git -C backend submodule update --init --depth 1 -- dependencies/submodules/glm dependencies/submodules/imgui dependencies/submodules/spdlog
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned public submodule checkout failed' }
+          python workspace/duoview/clean_restart/verify_exact_baseline.py workspace/duoview/clean_restart/baseline.lock.json backend frontend evidence
+          if ($LASTEXITCODE -ne 0) { throw 'Exact source identity or completeness verification failed' }
+      - name: Apply exact-anchor Stage 1 fallback patch
+        shell: pwsh
+        run: |
+          python workspace/duoview/joey_stage1/apply_stage1.py backend frontend evidence
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to apply guarded DuoView Stage 1 edits' }
+          python workspace/duoview/joey_stage1/verify_stage1.py backend frontend evidence
+          if ($LASTEXITCODE -ne 0) { throw 'Unexpected source changes in DuoView Stage 1' }
+      - name: Apply Native Stereo Fix backed DuoView source changes
+        shell: pwsh
+        run: |
+          python workspace/duoview/joey_stage1/apply_stage234.py backend frontend workspace/duoview
+          if ($LASTEXITCODE -ne 0) { throw 'Stage 2-4 source anchors did not match original Joey' }
+          python workspace/duoview/joey_stage1/verify_stage234.py backend frontend evidence
+          if ($LASTEXITCODE -ne 0) { throw 'Stage 2-4 violated original-source or SDK boundaries' }
+      - name: Apply isolated stereo QuadView backend overlay
+        shell: pwsh
+        run: |
+          python workspace/quadview/apply_quadviews.py backend frontend workspace/quadview
+          if ($LASTEXITCODE -ne 0) { throw 'QuadView guarded source overlay failed' }
+          python workspace/quadview/apply_quadview_consumer.py backend
+          if ($LASTEXITCODE -ne 0) { throw 'QuadView consumer source overlay failed' }
+          python workspace/quadview/apply_quadview_native_delivery.py backend
+          if ($LASTEXITCODE -ne 0) { throw 'Four-source Native Stereo Fix delivery overlay failed' }
+          python workspace/quadview/apply_quadview_native_retirement.py backend
+          if ($LASTEXITCODE -ne 0) { throw 'Fenced native target retirement overlay failed' }
+          python workspace/quadview/apply_quadview_recovery.py backend
+          if ($LASTEXITCODE -ne 0) { throw 'Engine-only bootstrap/shared-tail recovery overlay failed' }
+          python workspace/quadview/apply_quadview_role_frames.py backend
+          if ($LASTEXITCODE -ne 0) { throw 'Exact singleton frame binding overlay failed' }
+          python workspace/quadview/apply_quadview_hook_trace.py backend
+          if ($LASTEXITCODE -ne 0) { throw 'Hook trace overlay failed' }
+          python workspace/quadview/apply_quadview_hook_output_trace.py backend
+          if ($LASTEXITCODE -ne 0) { throw 'Hook output trace overlay failed' }
+          python workspace/quadview/embed_shader.py backend/src/mods/vr/QuadViewShaderBytecode.hpp
+          if ($LASTEXITCODE -ne 0) { throw 'QuadView offline shader compilation failed' }
+          python workspace/quadview/SourceCheckpointTests.py
+          if ($LASTEXITCODE -ne 0) { throw 'QuadView source checkpoint regression tests failed' }
+          python workspace/quadview/source_checkpoint.py capture backend frontend evidence/quadview-source.json
+          if ($LASTEXITCODE -ne 0) { throw 'QuadView source checkpoint failed' }
+      - name: Configure exact Build50 and compile backend with its existing release symbols
+        shell: pwsh
+        run: |
+          cmake -S backend -B backend/build -G 'Visual Studio 17 2022' -A x64 -DCMAKE_BUILD_TYPE=Release *> evidence/configure.log
+          if ($LASTEXITCODE -ne 0) { Get-Content evidence/configure.log -Tail 60; throw 'configure' }
+          cmake --build backend/build --config Release --target uevr --parallel 2 *> evidence/backend-build.log
+          if ($LASTEXITCODE -ne 0) { Get-Content evidence/backend-build.log -Tail 80; throw 'compile' }
+          Get-ChildItem backend/build -Recurse -Filter UEVRBackend.* | Select-Object FullName,Length | Format-Table | Out-String | Set-Content evidence/symbol-files.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Build50-Reconstructed-Symbols
+          path: |
+            backend/build/**/UEVRBackend.dll
+            backend/build/**/UEVRBackend.pdb
+            evidence/
+          if-no-files-found: error
+          retention-days: 30
