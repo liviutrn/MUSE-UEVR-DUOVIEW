@@ -509,6 +509,8 @@ void OpenXR::on_draw_ui() {
 
         this->ignore_vd_checks->draw("Ignore Virtual Desktop Checks");
 
+        this->mono_submit_pose_mode->draw("Mono Submit View Poses");
+
         if (ImGui::TreeNode("Bindings")) {
             display_bindings_editor();
             ImGui::TreePop();
@@ -3982,6 +3984,23 @@ XrResult OpenXR::end_frame(const std::vector<XrCompositionLayerBaseHeader*>& qua
     }
     const auto debug_submit_empty = this->debug_submit_empty_frame->value();
 
+    // Experimental Mono submit view poses (pure Joey Mono only; never the
+    // DuoView hijack, never the stalker pair path): some runtimes key layer
+    // compositing/timewarp off the projection layer's view geometry, and
+    // the stock centre pose for both eyes misregisters add-on layers (and
+    // the mono image itself) on SteamVR. Modes 1/2 put real per-eye view
+    // geometry on the real scene layer instead: 1 = real eye positions
+    // (centre orientation + crop FOV kept), 2 = real eye poses + FOV
+    // (mono crop imageRects kept). Mode 0 is byte-for-byte stock.
+    const auto submit_pose_mode = [&]() {
+        if (!mono || stalker_pair) { return 0; }
+        const auto v = this->mono_submit_pose_mode->value();
+        return (v >= 0 && v <= 2) ? v : 0;
+    }();
+    if (submit_pose_mode != 0) {
+        SPDLOG_INFO_EVERY_N_SEC(5, "[Mono][SubmitPose] mode={} active (1=real eye positions, 2=real eye poses + FOV)", submit_pose_mode);
+    }
+
     if (pipelined_stage_views.empty()) {
         if (mono_submit) { SPDLOG_WARNING_EVERY_N_SEC(2, "[Mono] No validated current scene/pose to submit"); }
         else { spdlog::warn("[VR] No stage views to submit"); }
@@ -4052,11 +4071,20 @@ XrResult OpenXR::end_frame(const std::vector<XrCompositionLayerBaseHeader*>& qua
 
             projection_layer_views[i].type = XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW;
             projection_layer_views[i].pose = stalker_pair ? stalker_pair->views[i].pose : pipelined_stage_views[i].pose;
-            if (mono_projection) {
+            if (mono_projection && submit_pose_mode != 2) {
                 const auto& g = *mono_projection;
-                projection_layer_views[i].pose.position = {g.center[0], g.center[1], g.center[2]};
+                if (submit_pose_mode == 1) {
+                    // Real eye position; orientation stays the mono centre.
+                    // (pose was initialised from the stage views above, and
+                    // submit_pose_mode is 0 whenever stalker_pair is set.)
+                    projection_layer_views[i].pose.position = pipelined_stage_views[i].pose.position;
+                } else {
+                    projection_layer_views[i].pose.position = {g.center[0], g.center[1], g.center[2]};
+                }
                 projection_layer_views[i].pose.orientation = {g.orientation[0], g.orientation[1], g.orientation[2], g.orientation[3]};
             }
+            // Mode 2: pose stays exactly the real stage-view pose assigned
+            // above; the crop block below still supplies the imageRect.
             projection_layer_views[i].fov = stalker_pair ? stalker_pair->views[i].fov : pipelined_stage_views[i].fov;
             projection_layer_views[i].subImage.swapchain = swapchain->handle;
             projection_layer_views[i].subImage.imageArrayIndex = has_native_stereo_array ? (uint32_t)i : 0;
@@ -4081,10 +4109,13 @@ XrResult OpenXR::end_frame(const std::vector<XrCompositionLayerBaseHeader*>& qua
                 offset_y = static_cast<int>(crop.y);
                 extent_x = static_cast<int>(crop.width);
                 extent_y = static_cast<int>(crop.height);
-                projection_layer_views[i].fov = {std::atan(crop.fov[0]), std::atan(crop.fov[1]),
-                    std::atan(crop.fov[2]), std::atan(crop.fov[3])};
+                if (submit_pose_mode != 2) {
+                    projection_layer_views[i].fov = {std::atan(crop.fov[0]), std::atan(crop.fov[1]),
+                        std::atan(crop.fov[2]), std::atan(crop.fov[3])};
+                }
+                // Mode 2: FOV stays the real stage-view FOV assigned above.
             }
-            
+
             // SPDLOG_INFO("image calc for eye {} {}, {}, {}, {}", i, offset_x, extent_x, offset_y, extent_y);
             projection_layer_views[i].subImage.imageRect.offset = {offset_x, offset_y};
             projection_layer_views[i].subImage.imageRect.extent = {extent_x, extent_y};

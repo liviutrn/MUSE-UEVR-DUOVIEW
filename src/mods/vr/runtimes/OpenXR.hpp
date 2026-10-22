@@ -446,6 +446,8 @@ public:
     void log_frame_timing_stats_if_needed();
     
     const ModSlider::Ptr resolution_scale{ ModSlider::create("OpenXR_ResolutionScale", 0.1f, 3.0f, 1.0f) };
+    const ModCombo::Ptr mono_submit_pose_mode{ ModCombo::create("OpenXR_MonoSubmitPoseMode",
+        {"Centre (stock)", "Real eye positions", "Real eye poses + FOV"}) };
     const ModToggle::Ptr ignore_vd_checks{ ModToggle::create("OpenXR_IgnoreVirtualDesktopChecks", false) };
     const ModToggle::Ptr debug_frame_trace{ ModToggle::create("OpenXR_DebugFrameTrace", false) };
     const ModToggle::Ptr debug_submit_empty_frame{ ModToggle::create("OpenXR_DebugSubmitEmptyFrame", false) };
@@ -530,6 +532,7 @@ public:
     
     Mod::ValueList options{
         *resolution_scale,
+        *mono_submit_pose_mode,
         *ignore_vd_checks,
         *debug_frame_trace,
         *debug_submit_empty_frame,
