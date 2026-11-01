@@ -26,7 +26,7 @@ jobs:
               const data = {
                 run_id: context.runId,
                 run_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-                source_sha: '5bfb1af73be01e390a59ec2104c97697c4de0307',
+                source_sha: 'd2d72d7e8df0b7a852c20887c2668a0e798742ed',
                 job: 'windows',
                 state: 'started'
               };
@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
-          ref: 5bfb1af73be01e390a59ec2104c97697c4de0307
+          ref: d2d72d7e8df0b7a852c20887c2668a0e798742ed
           path: workspace
           fetch-depth: 0
           persist-credentials: false
@@ -322,7 +322,7 @@ jobs:
               const data = {
                 run_id: context.runId,
                 run_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-                source_sha: '5bfb1af73be01e390a59ec2104c97697c4de0307',
+                source_sha: 'd2d72d7e8df0b7a852c20887c2668a0e798742ed',
                 job: 'windows',
                 state: '${{ job.status }}'
               };
@@ -343,7 +343,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
-          ref: 5bfb1af73be01e390a59ec2104c97697c4de0307
+          ref: d2d72d7e8df0b7a852c20887c2668a0e798742ed
           persist-credentials: false
       - name: Run production-header recovery and ownership tests with ASan and UBSan
         shell: bash
@@ -377,7 +377,7 @@ jobs:
               const data = {
                 run_id: context.runId,
                 run_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-                source_sha: '5bfb1af73be01e390a59ec2104c97697c4de0307',
+                source_sha: 'd2d72d7e8df0b7a852c20887c2668a0e798742ed',
                 job: 'linux',
                 state: '${{ job.status }}'
               };
