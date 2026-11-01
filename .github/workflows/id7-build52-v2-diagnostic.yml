@@ -18,6 +18,26 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 120
     steps:
+      - name: Publish Build52 v2 run URL immediately
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              const data = {
+                run_id: context.runId,
+                run_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                source_sha: '5bfb1af73be01e390a59ec2104c97697c4de0307',
+                job: 'windows',
+                state: 'started'
+              };
+              await github.rest.repos.createOrUpdateFileContents({
+                ...context.repo,
+                path: `build52-run-status/${context.runId}-start.json`,
+                message: `ci: Build52 v2 launched ${context.runId}`,
+                content: Buffer.from(JSON.stringify(data,null,2)).toString('base64'),
+                branch: 'fix/id7-build51-source-lifetime-ci-20261023'
+              });
+            } catch (e) { core.warning(`Could not publish Build52 run locator: ${e.message}`); }
       - uses: actions/checkout@v4
         with:
           repository: liviutrn/UEVR-Quad-Views-Mono
